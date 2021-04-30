@@ -1,11 +1,13 @@
 # q_learning_project
 
+## Implementation Plan
+
+### Names of team members
 Jingyu Cai [jcai23@uchicago.edu](mailto:jcai23@uchicago.edu)
 
 Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 
-## Project Plan
-
+### Component implementation and testing
 - **Q-learning algorithm**
     - **Executing the Q-learning algorithm**
    
