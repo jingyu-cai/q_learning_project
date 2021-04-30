@@ -50,5 +50,5 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 - Robot perception: May 3rd
 - Robot manipulation and movement: May 7th
 - Q-learning: May 10th
-  The rest of the time would be used for tuning and optimization.
+- The rest of the time would be used for tuning and optimization.
 - DDL: Wednesday, May 12 11:00am CST
