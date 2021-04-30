@@ -24,15 +24,16 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
     - **Determining the identities and locations of the three colored dumbbells**
   
         The idea would be using **Sensory-Motor Control**, and following the *Line Follower* class exercise from Class 3: 
+        
         For each color of the three dumbbells:
         1. Defining the range for pixels in this color in the image feed
         2. After getting locations of all pixels in this color, compute the center of the "color block", and turn the head of robot to put it at the center of the camera.
+        
         For testing, we would look at the GUI of Gazebo, and see if the robot would turn to the wanted dumbbell. 
 
     - **Determining the identities and locations of the three numbered blocks**
   
-        We would navigate to the front of these three numbered blocks (so that the number would be at the center of the camera), and use `keras_ocr` for digit recognition by implementing the pre-trained models into our script.
-        For testing, once a number is recognized, we would print out this number and check if it's consistent with the one shown on Gazebo.
+        We would navigate to the front of these three numbered blocks (so that the number would be at the center of the camera), and use `keras_ocr` for digit recognition by implementing the pre-trained models into our script. For testing, once a number is recognized, we would print out this number and check if it's consistent with the one shown on Gazebo.
 
 - **Robot manipulation & movement**
     - **Picking up and putting down the dumbbells with the OpenMANIPULATOR arm**
