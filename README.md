@@ -40,7 +40,7 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 - **Robot manipulation & movement**
     - **Picking up and putting down the dumbbells with the OpenMANIPULATOR arm**
 
-        Following the *Forward & Inverse Kinematics* section in class 8, we would calculate the desired angle for each joint, based on the size of the dumbbells. The putting down process is expected to be the reverse of the picking up process. For testing, it would also be simply "visual check" on Gazebo to see if the robot can lift and put down the dumbbells.
+        Following the *Forward & Inverse Kinematics* section in class 8, we would calculate the desired angle for each joint, based on the size of the dumbbells. The putting down process is expected to be the reverse of the picking up process. For testing, it would also simply be a "visual check" on Gazebo to see if the robot can lift and put down the dumbbells.
 
     - **Navigating to the appropriate locations to pick up and put down the dumbbells**
   
