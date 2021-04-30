@@ -44,7 +44,7 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 
     - **Navigating to the appropriate locations to pick up and put down the dumbbells**
   
-        We would implement proportional control to enable the robot to navigate to the dumbbell of a particular color. It would be similar to the *Person Follower* in warm-up project. For testing, we would also look at the Gazebo to check if the robot moves to the wanted dumbbell.
+        We would implement proportional control to enable the robot to navigate to the dumbbell of a particular color. It would be similar to the *Person Follower* in warm-up project. For testing, we would also look at Gazebo to check if the robot moves to the wanted dumbbell.
 
 ### Timeline (tentative)
 - Robot perception: May 3rd
