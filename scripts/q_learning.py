@@ -24,8 +24,8 @@ class QLearning(object):
         rospy.init_node("q_learning")
 
         # Set up publishers
-        self.q_matrix_pub = rospy.Publisher("/q_learning/q_matrix", QMatrix, queue_size=10)
-        self.robot_action_pub = rospy.Publisher("/q_learning/robot_action", RobotMoveDBToBlock, queue_size=10)
+        self.q_matrix_pub = rospy.Publisher("/q_learning/q_matrix", QMatrix, queue_size = 10)
+        self.robot_action_pub = rospy.Publisher("/q_learning/robot_action", RobotMoveDBToBlock, queue_size = 10)
 
         # Set up subscriber
         rospy.Subscriber("q_learning/reward", QLearningReward, self.reward_received)
