@@ -66,10 +66,16 @@ class QLearning(object):
 
         # Initialize current state and keep track of the next state
         self.curr_state = 0
-        self.next_state = -1
+        self.next_state = 0
 
-        # Initialize action index
-        self.action = -1
+        # Initialize current action index
+        self.curr_action = 0
+
+        # Initialize variables to define static changes and keep track of how many 
+        # iterations have the Q-matrix remained static
+        self.epsilon = 0.01
+        self.static_threshold = 100
+        self.static_tracker = 0
 
         # Initialize and publish Q-matrix
         self.q_matrix = QMatrix()
@@ -111,7 +117,7 @@ class QLearning(object):
         # Randomly select an action from the row, assign that action to self.action
         #   and find its index in the row to assign it to self.next_state
         selected_action = choice(filtered_actions_in_row)
-        self.action = selected_action
+        self.curr_action = selected_action
         self.next_state = actions_in_row.index(selected_action)
         
         # Get the dumbbell color and the block id for the selected action
@@ -131,27 +137,39 @@ class QLearning(object):
         # Initialize variables to be used
         curr_state = self.curr_state
         next_state = self.next_state
-        action = self.action
+        curr_action = self.curr_action
 
         # Set up parameters for the algorithm
         alpha = 1
         gamma = 0.5
 
         # Apply algorithm to update the q value for a state-action pair
-        q_value = self.q_matrix.q_matrix[curr_state].q_matrix_row[action]
-        q_value = q_value + alpha * (data.reward + gamma * max(self.q_matrix.q_matrix[next_state].q_matrix_row) - q_value)
-        self.q_matrix.q_matrix[curr_state].q_matrix_row[action] = q_value
+        old_q_value = self.q_matrix.q_matrix[curr_state].q_matrix_row[curr_action]
+        new_q_value = old_q_value + alpha * (data.reward + gamma * max(self.q_matrix.q_matrix[next_state].q_matrix_row) - old_q_value)
+        self.q_matrix.q_matrix[curr_state].q_matrix_row[curr_action] = new_q_value
 
-        # Now, move on to the next state to continue iterating
-        self.curr_state = self.next_state
+        # Now, move the current state on to the next state
+        self.curr_state = next_state
+
+        # Check if the change in q-value is static or not and update the tracker
+        if abs(old_q_value - new_q_value) <= self.epsilon:
+            self.static_tracker += 1
+        else:
+            self.static_tracker == 0
 
         # Publish the Q-matrix
         self.q_matrix_pub.publish(self.q_matrix)
 
 
     def is_converged(self):
-        # TODO: Check if the Q-matrix converged
-        return
+        """ Check if the Q-matrix has converged """
+
+        # If the Q-matrix has remained static for a certain amount of time, 
+        #   then it is defined to be convergent
+        if self.static_tracker >= self.static_threshold:
+            return True
+
+        return False
 
 
     def save_q_matrix(self):
