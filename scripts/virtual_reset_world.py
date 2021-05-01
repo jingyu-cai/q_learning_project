@@ -21,6 +21,8 @@ class ResetWorld(object):
         # initialize this node
         rospy.init_node('virtual_reset_world_q_learning')
 
+        print("resetworld.py")
+
         # reward amounts
         self.positive_reward = 100
         self.negative_reward = 0
