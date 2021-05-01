@@ -93,23 +93,32 @@ class QLearning(object):
     def select_random_action(self):
         """ Select a random action based on current state and publish it """
 
+        # Do nothing if Q-matrix is not yet initialized
         if not self.initialized:
             return
         
+        # Identify current state and find the row corresponding with that state in the 
+        #   action matrix, this is all the valid + invalid actions a robot can take
         curr_state = self.curr_state
         actions_in_row = self.action_matrix[curr_state]
+
+        # Filter out the invalid actions from the row of actions, and if all
+        #   the actions are invalid, then do nothing
         filtered_actions_in_row = filter(lambda x: x != -1, actions_in_row)
-        
         if len(filtered_actions_in_row) == 0:
             return
 
+        # Randomly select an action from the row, assign that action to self.action
+        #   and find its index in the row to assign it to self.next_state
         selected_action = choice(filtered_actions_in_row)
         self.action = selected_action
         self.next_state = actions_in_row.index(selected_action)
         
+        # Get the dumbbell color and the block id for the selected action
         db = self.actions[selected_action]["dumbbell"]
         block = self.actions[selected_action]["block"]
 
+        # Set up a RobotMoveDBToBlock() msg and publish it
         robot_action = RobotMoveDBToBlock()
         robot_action.robot_db = db
         robot_action.block_id = block
@@ -119,19 +128,24 @@ class QLearning(object):
     def update_q_matrix(self, data):
         """ Apply the Q-learning algorithm to update and publish the Q-matrix """
 
+        # Initialize variables to be used
         curr_state = self.curr_state
         next_state = self.next_state
         action = self.action
 
+        # Set up parameters for the algorithm
         alpha = 1
         gamma = 0.5
 
-        q_st_at = self.q_matrix.q_matrix[curr_state].q_matrix_row[action]
-        q_st_at = q_st_at + alpha * (data.reward + gamma * max(self.q_matrix.q_matrix[next_state].q_matrix_row) - q_st_at)
-        self.q_matrix.q_matrix[curr_state].q_matrix_row[action] = q_st_at
+        # Apply algorithm to update the q value for a state-action pair
+        q_value = self.q_matrix.q_matrix[curr_state].q_matrix_row[action]
+        q_value = q_value + alpha * (data.reward + gamma * max(self.q_matrix.q_matrix[next_state].q_matrix_row) - q_value)
+        self.q_matrix.q_matrix[curr_state].q_matrix_row[action] = q_value
 
+        # Now, move on to the next state to continue iterating
         self.curr_state = self.next_state
 
+        # Publish the Q-matrix
         self.q_matrix_pub.publish(self.q_matrix)
 
 
@@ -142,6 +156,8 @@ class QLearning(object):
 
     def save_q_matrix(self):
         """ Save Q-matrix as a csv file once it's converged to avoid retraining """
+
+        # Save the Q-matrix as a csv file
         data = self.q_matrix.q_matrix
         data = np.asarray(data)
         np.savetxt("./q_matrix.csv", data, delimiter = ',')
