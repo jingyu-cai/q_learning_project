@@ -28,10 +28,7 @@ class QLearning(object):
         self.robot_action_pub = rospy.Publisher("/q_learning/robot_action", RobotMoveDBToBlock, queue_size = 10)
 
         # Set up subscriber
-        rospy.Subscriber("q_learning/reward", QLearningReward, self.reward_received)
-
-        # Sleep for 1 second to ensure everything is set up
-        rospy.sleep(1)
+        rospy.Subscriber("/q_learning/reward", QLearningReward, self.reward_received)
 
         # Fetch pre-built action matrix. This is a 2d numpy array where row indexes
         # correspond to the starting state and column indexes are the next states.
