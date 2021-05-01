@@ -14,6 +14,14 @@ path_prefix = os.path.dirname(__file__) + "/action_states/"
 
 print_header = "=" * 10
 
+def print_state(states):
+    colors = ['red', 'green', 'blue']
+    blocks = states
+    output = ""
+    for c, b in zip(colors, blocks):
+        output += f"{c} -> {b} ;"
+    print(output)
+
 class QLearning(object):
 
 
@@ -23,8 +31,6 @@ class QLearning(object):
 
         # Initialize this node
         rospy.init_node("q_learning")
-
-        print("=========*=*====q_learning.py==============")
 
         # Set up publishers
         self.q_matrix_pub = rospy.Publisher("/q_learning/q_matrix", QMatrix, queue_size = 10)
@@ -120,21 +126,21 @@ class QLearning(object):
         # Filter out the invalid actions from the row of actions, and if all
         #   the actions are invalid, then do nothing
         filtered_actions_in_row = list(filter(lambda x: x != -1, actions_in_row))
-        if len(filtered_actions_in_row) == 0:
-            print(print_header + "no action to take" + print_header)
-            return
 
+        # If there's no more actions to take: reset current state to state 0
+        while len(filtered_actions_in_row) == 0:
+            print(print_header + "no action to take" + print_header)
+            self.curr_state = 0
+            curr_state = self.curr_state
+            actions_in_row = self.action_matrix[curr_state]
+            filtered_actions_in_row = list(filter(lambda x: x != -1, actions_in_row))
+            
         # Randomly select an action from the row, assign that action to self.action
         #   and find its index in the row to assign it to self.next_state
-        print(print_header + print_header)
-        print(f"filtered_actions_in_row : {filtered_actions_in_row}")
-        print(print_header + print_header)
-
         selected_action = int(choice(filtered_actions_in_row))
         self.curr_action = selected_action
         self.next_state = np.where(actions_in_row == selected_action)[0][0]
-        #self.next_state = actions_in_row.index(selected_action)
-        
+
         # Get the dumbbell color and the block id for the selected action
         db = self.actions[selected_action]["dumbbell"]
         block = self.actions[selected_action]["block"]
@@ -167,6 +173,9 @@ class QLearning(object):
         # Now, move the current state on to the next state
         self.curr_state = next_state
 
+        # For testing: print current state
+        print_state(self.states[self.curr_state])
+
         # Check if the change in q-value is static or not and update the tracker
         if abs(old_q_value - new_q_value) <= self.epsilon:
             self.static_tracker += 1
@@ -194,19 +203,21 @@ class QLearning(object):
         # Save the Q-matrix as a csv file
         data = self.q_matrix.q_matrix
         data = np.asarray(data)
-        np.savetxt("./q_matrix.csv", data, delimiter = ',')
-        print(print_header + "saving matrix" + print_header)
+        np.savetxt("./q_matrix.csv", data, fmt='%5s', delimiter = ',')
 
     
     def reward_received(self, data):
         """ Process received reward after an action """
 
         # Update the Q-matrix
+
         self.update_q_matrix(data.reward)
 
         if self.is_converged():
             # If the Q-matrix has converged, then we will save it
             self.save_q_matrix()
+            print(print_header + "matrix saved!" + print_header)
+            return
         else:
             # If not, we continue to make random actions
             self.select_random_action()

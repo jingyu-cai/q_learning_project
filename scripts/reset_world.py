@@ -12,9 +12,13 @@ from random import shuffle
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 
+print_header = "-" * 10
+
 class ResetWorld(object):
 
     def __init__(self):
+
+        print(print_header + "RESETWORLD" + print_header)
 
         # initialize this node
         rospy.init_node('reset_world_q_learning')

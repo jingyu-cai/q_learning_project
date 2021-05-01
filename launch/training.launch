@@ -39,7 +39,7 @@
   <node pkg="tf" type="static_transform_publisher" name="link3_broadcaster" args="0.0 0.0 0.1016 0 0 0 /base_footprint /camera_rgb_optical_frame 100" />
 
   <!-- run world restting node -->
-  <node name="virtual_reset_world_q_learning" pkg="q_learning_project" type="virtual_reset_world.py" respawn="true" output='screen'/>
+  <node name="virtual_reset_world_q_learning" pkg="q_learning_project" type="reset_world.py" respawn="true" output='screen'/>
   <node name="q_learning" pkg="q_learning_project" type="q_learning.py" respawn="true" output='screen'/>
 
 </launch>
