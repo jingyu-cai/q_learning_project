@@ -10,6 +10,7 @@ import time
 
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
+print_header = "-" * 10
 
 class RobotAction(object):
 

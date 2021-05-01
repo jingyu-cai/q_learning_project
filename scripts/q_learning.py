@@ -12,6 +12,7 @@ from q_learning_project.msg import QLearningReward, QMatrix, QMatrixRow, RobotMo
 # Path of directory on where this file is located
 path_prefix = os.path.dirname(__file__) + "/action_states/"
 
+print_header = "=" * 10
 
 class QLearning(object):
 
@@ -23,11 +24,12 @@ class QLearning(object):
         # Initialize this node
         rospy.init_node("q_learning")
 
-        print("q_learning.py")
+        print("=========*=*====q_learning.py==============")
 
         # Set up publishers
         self.q_matrix_pub = rospy.Publisher("/q_learning/q_matrix", QMatrix, queue_size = 10)
         self.robot_action_pub = rospy.Publisher("/q_learning/robot_action", RobotMoveDBToBlock, queue_size = 10)
+        
 
         # Set up subscriber
         rospy.Subscriber("/q_learning/reward", QLearningReward, self.reward_received)
@@ -81,7 +83,14 @@ class QLearning(object):
         self.initialize_q_matrix()
         self.q_matrix_pub.publish(self.q_matrix)
 
+        
+
         self.initialized = True
+        rospy.sleep(1)
+        
+        self.select_random_action()
+
+
 
 
     def initialize_q_matrix(self):
@@ -100,6 +109,7 @@ class QLearning(object):
 
         # Do nothing if Q-matrix is not yet initialized
         if not self.initialized:
+            print(print_header + "not initialized" + print_header)
             return
         
         # Identify current state and find the row corresponding with that state in the 
@@ -109,15 +119,21 @@ class QLearning(object):
 
         # Filter out the invalid actions from the row of actions, and if all
         #   the actions are invalid, then do nothing
-        filtered_actions_in_row = filter(lambda x: x != -1, actions_in_row)
+        filtered_actions_in_row = list(filter(lambda x: x != -1, actions_in_row))
         if len(filtered_actions_in_row) == 0:
+            print(print_header + "no action to take" + print_header)
             return
 
         # Randomly select an action from the row, assign that action to self.action
         #   and find its index in the row to assign it to self.next_state
-        selected_action = choice(filtered_actions_in_row)
+        print(print_header + print_header)
+        print(f"filtered_actions_in_row : {filtered_actions_in_row}")
+        print(print_header + print_header)
+
+        selected_action = int(choice(filtered_actions_in_row))
         self.curr_action = selected_action
-        self.next_state = actions_in_row.index(selected_action)
+        self.next_state = np.where(actions_in_row == selected_action)[0][0]
+        #self.next_state = actions_in_row.index(selected_action)
         
         # Get the dumbbell color and the block id for the selected action
         db = self.actions[selected_action]["dumbbell"]
@@ -128,6 +144,7 @@ class QLearning(object):
         robot_action.robot_db = db
         robot_action.block_id = block
         self.robot_action_pub.publish(robot_action)
+        print(print_header + f"published a new action: {db}, {block}" + print_header)
 
 
     def update_q_matrix(self, reward):
@@ -178,6 +195,7 @@ class QLearning(object):
         data = self.q_matrix.q_matrix
         data = np.asarray(data)
         np.savetxt("./q_matrix.csv", data, delimiter = ',')
+        print(print_header + "saving matrix" + print_header)
 
     
     def reward_received(self, data):
@@ -186,7 +204,7 @@ class QLearning(object):
         # Update the Q-matrix
         self.update_q_matrix(data.reward)
 
-        if is_converged():
+        if self.is_converged():
             # If the Q-matrix has converged, then we will save it
             self.save_q_matrix()
         else:

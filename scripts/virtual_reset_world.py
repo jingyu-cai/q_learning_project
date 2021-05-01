@@ -13,6 +13,7 @@ from std_msgs.msg import Header
 from random import shuffle
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
+print_header = "-" * 10
 
 class ResetWorld(object):
 
@@ -21,7 +22,7 @@ class ResetWorld(object):
         # initialize this node
         rospy.init_node('virtual_reset_world_q_learning')
 
-        print("resetworld.py")
+        print("==**********=*====resetworld.py=========*=*====")
 
         # reward amounts
         self.positive_reward = 100
@@ -77,7 +78,7 @@ class ResetWorld(object):
         reward_msg.reward = reward_amount
         reward_msg.iteration_num = self.iteration_num
         self.reward_pub.publish(reward_msg)
-        print("Published reward: ", reward_amount)
+        print(print_header + "Published reward " + print_header, reward_amount)
 
         # increment iteration if world needs to be reset
         # reset db positions if world needs to be rest
