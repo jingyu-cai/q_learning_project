@@ -64,17 +64,17 @@ class QLearning(object):
         self.states = np.loadtxt(path_prefix + "states.txt")
         self.states = list(map(lambda x: list(map(lambda y: int(y), x)), self.states))
 
-        # Initialize and publish Q-matrix
-        self.q_matrix = QMatrix()
-        self.initialize_q_matrix()
-        self.q_matrix_pub.publish(self.q_matrix)
-
         # Initialize current state and keep track of the next state
         self.curr_state = 0
         self.next_state = -1
 
         # Initialize action index
         self.action = -1
+
+        # Initialize and publish Q-matrix
+        self.q_matrix = QMatrix()
+        self.initialize_q_matrix()
+        self.q_matrix_pub.publish(self.q_matrix)
 
         self.initialized = True
 
