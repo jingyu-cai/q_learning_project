@@ -70,9 +70,6 @@ class QLearning(object):
         # Initialize current action index
         self.curr_action = 0
 
-        # Initialize variable to train at least a certain amount of time
-        self.min_iter_threshold = 10000
-
         # Initialize variables to define static status and keep track of how many 
         #   iterations have the Q-matrix remained static
         self.epsilon = 0.01
@@ -163,12 +160,8 @@ class QLearning(object):
         self.q_matrix_pub.publish(self.q_matrix)
 
 
-    def is_converged(self, iteration_num):
+    def is_converged(self):
         """ Check if the Q-matrix has converged """
-
-        # We need to train at least min_iter_threshold iterations before determining convergence
-        if iteration_num < self.min_iter_threshold:
-            return False
 
         # If the Q-matrix has remained static for a certain amount of time, 
         #   then it is defined to be convergent
@@ -193,7 +186,7 @@ class QLearning(object):
         # Update the Q-matrix
         self.update_q_matrix(data.reward)
 
-        if is_converged(data.iteration_num):
+        if is_converged():
             # If the Q-matrix has converged, then we will save it
             self.save_q_matrix()
         else:
