@@ -71,10 +71,13 @@ class QLearning(object):
         # Initialize current action index
         self.curr_action = 0
 
-        # Initialize variables to define static changes and keep track of how many 
-        # iterations have the Q-matrix remained static
+        # Initialize variable to train at least a certain amount of time
+        self.min_iter_threshold = 10000
+
+        # Initialize variables to define static status and keep track of how many 
+        #   iterations have the Q-matrix remained static
         self.epsilon = 0.01
-        self.static_threshold = 100
+        self.static_iter_threshold = 100
         self.static_tracker = 0
 
         # Initialize and publish Q-matrix
@@ -131,7 +134,7 @@ class QLearning(object):
         self.robot_action_pub.publish(robot_action)
 
 
-    def update_q_matrix(self, data):
+    def update_q_matrix(self, reward):
         """ Apply the Q-learning algorithm to update and publish the Q-matrix """
 
         # Initialize variables to be used
@@ -145,7 +148,7 @@ class QLearning(object):
 
         # Apply algorithm to update the q value for a state-action pair
         old_q_value = self.q_matrix.q_matrix[curr_state].q_matrix_row[curr_action]
-        new_q_value = old_q_value + alpha * (data.reward + gamma * max(self.q_matrix.q_matrix[next_state].q_matrix_row) - old_q_value)
+        new_q_value = old_q_value + alpha * (reward + gamma * max(self.q_matrix.q_matrix[next_state].q_matrix_row) - old_q_value)
         self.q_matrix.q_matrix[curr_state].q_matrix_row[curr_action] = new_q_value
 
         # Now, move the current state on to the next state
@@ -161,12 +164,16 @@ class QLearning(object):
         self.q_matrix_pub.publish(self.q_matrix)
 
 
-    def is_converged(self):
+    def is_converged(self, iteration_num):
         """ Check if the Q-matrix has converged """
+
+        # We need to train at least min_iter_threshold iterations before determining convergence
+        if iteration_num < self.min_iter_threshold:
+            return False
 
         # If the Q-matrix has remained static for a certain amount of time, 
         #   then it is defined to be convergent
-        if self.static_tracker >= self.static_threshold:
+        if self.static_tracker >= self.static_iter_threshold:
             return True
 
         return False
@@ -182,10 +189,26 @@ class QLearning(object):
 
     
     def reward_received(self, data):
-        # TODO: Process reward after an action, includes update and check convergence,
-        #  data argument is QLearningReward
-        return
+        """ Process received reward after an action """
+
+        # Update the Q-matrix
+        self.update_q_matrix(data.reward)
+
+        if is_converged(data.iteration_num):
+            # If the Q-matrix has converged, then we will save it
+            self.save_q_matrix()
+        else:
+            # If not, we continue to make random actions
+            self.select_random_action()
+
+
+    def run(self):
+        """ Run the node """
+
+        # Keep the program alive
+        rospy.spin()
 
 
 if __name__ == "__main__":
     node = QLearning()
+    node.run()
