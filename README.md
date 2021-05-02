@@ -7,6 +7,17 @@ Jingyu Cai [jcai23@uchicago.edu](mailto:jcai23@uchicago.edu)
 
 Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 
+### Testing Steps
+
+#### Q Learning
+
+	
+	$roscore
+	$roslaunch q_learning_project training.launch
+	$rosrun q_learning_project phantom_robot_movement.py
+
+<span style="color:red">**IMPORTANT:**</span> remember clicking the <span style="color:yellow">**PLAY**</span> button!	
+
 ### Component implementation and testing
 - **Q-learning algorithm**
     - **Executing the Q-learning algorithm**
