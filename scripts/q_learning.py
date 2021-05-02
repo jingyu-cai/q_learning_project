@@ -14,6 +14,12 @@ path_prefix = os.path.dirname(__file__) + "/action_states/"
 
 print_header = "=" * 10
 
+def conver_q_matrix_to_list(qmatrix):
+    res = []
+    for qrow in qmatrix:
+        res.append(qrow.q_matrix_row)
+    return res
+
 def print_state(states):
     colors = ['red', 'green', 'blue']
     blocks = states
@@ -35,7 +41,7 @@ class QLearning(object):
         # Set up publishers
         self.q_matrix_pub = rospy.Publisher("/q_learning/q_matrix", QMatrix, queue_size = 10)
         self.robot_action_pub = rospy.Publisher("/q_learning/robot_action", RobotMoveDBToBlock, queue_size = 10)
-        
+        self.cnt = 0
 
         # Set up subscriber
         rospy.Subscriber("/q_learning/reward", QLearningReward, self.reward_received)
@@ -112,6 +118,7 @@ class QLearning(object):
 
     def select_random_action(self):
         """ Select a random action based on current state and publish it """
+        self.cnt += 1
 
         # Do nothing if Q-matrix is not yet initialized
         if not self.initialized:
@@ -150,7 +157,7 @@ class QLearning(object):
         robot_action.robot_db = db
         robot_action.block_id = block
         self.robot_action_pub.publish(robot_action)
-        print(print_header + f"published a new action: {db}, {block}" + print_header)
+        print(print_header + f"[{self.cnt}] published a new action: {db}, {block}" + print_header)
 
 
     def update_q_matrix(self, reward):
@@ -202,9 +209,11 @@ class QLearning(object):
 
         # Save the Q-matrix as a csv file
         data = self.q_matrix.q_matrix
+        data = conver_q_matrix_to_list(data)
+        print(f"type of data[0]: {type(data[0])}")
         data = np.asarray(data)
-        
-        np.savetxt("./q_matrix.csv", data, fmt='%5s', delimiter = ',')
+
+        np.savetxt("../catkin_ws/src/q_learning_project/scripts/q_matrix.csv", data, fmt='%5s', delimiter = ',')
 
     
     def reward_received(self, data):
@@ -217,8 +226,8 @@ class QLearning(object):
         if self.is_converged():
             # If the Q-matrix has converged, then we will save it
             self.save_q_matrix()
-            print(print_header + f"matrix saved in {os.getcwd()}!" + print_header)
-            return
+            print(print_header + f"matrix saved after {self.cnt} actions!" + print_header)
+            exit()
         else:
             # If not, we continue to make random actions
             self.select_random_action()
