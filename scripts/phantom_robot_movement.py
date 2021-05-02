@@ -27,7 +27,6 @@ class RobotAction(object):
 class PhantomRobotMovement(object):
 
     def __init__(self):
-block_id
         # initialize this node
         rospy.init_node('turtlebot3_phantom_movement')
 

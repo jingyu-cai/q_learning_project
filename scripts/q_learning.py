@@ -203,6 +203,7 @@ class QLearning(object):
         # Save the Q-matrix as a csv file
         data = self.q_matrix.q_matrix
         data = np.asarray(data)
+        
         np.savetxt("./q_matrix.csv", data, fmt='%5s', delimiter = ',')
 
     
@@ -216,7 +217,7 @@ class QLearning(object):
         if self.is_converged():
             # If the Q-matrix has converged, then we will save it
             self.save_q_matrix()
-            print(print_header + "matrix saved!" + print_header)
+            print(print_header + f"matrix saved in {os.getcwd()}!" + print_header)
             return
         else:
             # If not, we continue to make random actions
