@@ -25,6 +25,12 @@ PICKED_UP_DB = "picked_up_dumbbell"
 MOVING_TO_BLOCK = "moving_to_block"
 REACHED_BLOCK = "reached_block"
 
+# Path of directory on where this file is located
+path_prefix = os.path.dirname(__file__) + "/action_states/"
+
+# Path of where the trained Q-matrix csv file is located
+Q_MATRIX_PATH = "q_matrix.csv"
+
 
 class RobotPerception(object):
     def __init__(self):
@@ -41,6 +47,34 @@ class RobotPerception(object):
         # Set up subscribers
         self.image_sub = rospy.Subscriber('camera/rgb/image_raw', Image, self.image_callback)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
+
+        # Fetch pre-built action matrix. This is a 2d numpy array where row indexes
+        # correspond to the starting state and column indexes are the next states.
+        #
+        # A value of -1 indicates that it is not possible to get to the next state
+        # from the starting state. Values 0-9 correspond to what action is needed
+        # to go to the next state.
+        #
+        # e.g. self.action_matrix[0][12] = 5
+        self.action_matrix = np.loadtxt(path_prefix + "action_matrix.txt")
+
+        # Fetch actions. These are the only 9 possible actions the system can take.
+        # self.actions is an array of dictionaries where the row index corresponds
+        # to the action number, and the value has the following form:
+        # { dumbbell: "red", block: 1}
+        self.actions = np.loadtxt(path_prefix + "actions.txt")
+        self.actions = list(map(
+            lambda x: {"dumbbell": COLORS[int(x[0])], "block": int(x[1])},
+            self.actions
+        ))
+
+        # Set up a list to store the trained Q-matrix
+        self.q_matrix = []
+        self.load_q_matrix()
+
+        # Set up a list of tuples to store the action sequence and step (0, 1, 2)
+        self.action_sequence = []
+        self.action_step = 0
 
         # Create an empty Twist msg
         self.twist = Twist()
@@ -73,7 +107,57 @@ class RobotPerception(object):
 
         # Now everything is initialized
         self.initialized = True
+
     
+    def load_q_matrix(self):
+        """ Load the trained Q-matrix csv file """
+
+        # Store the file into self.q_matrix
+        self.q_matrix = np.loadtxt(Q_MATRIX_PATH, delimiter = ',')
+
+
+    def get_action_sequence(self):
+        """ Get the sequence of actions for the robot to move the dumbbells
+        to the correct blocks based on the trained Q-matrix """
+
+        # Do nothing if initialization is not done
+        if not self.initialized:
+            return
+        
+        # Start at the origin
+        curr_state = 0
+
+        # Keep track of what dumbbells and blocks are taken
+        colors = ["red", "green", "blue"]
+        blocks = [1, 2, 3]
+
+        # Loop through 3 times to get the action sequence
+        for i in range(3):
+
+            # We can rely on the Q-matrix for the first two actions
+            if i != 2:
+
+                # Get row in matrix and select the best action to take
+                q_matrix_row = self.q_matrix[curr_state]
+                selected_action = np.where(q_matrix_row == max(q_matrix_row))[0][0]
+
+                # Store the dumbbell color and block number for the action as a tuple
+                db = self.actions[selected_action]["dumbbell"]
+                block = self.actions[selected_action]["block"]
+                self.action_sequence.append((db, block))
+
+                # Update current state
+                curr_state = np.where(self.action_matrix[curr_state] == selected_action)[0][0]
+
+                # Remove the taken dumbbell and block
+                colors.remove(db)
+                blocks.remove(block)
+
+            # To avoid invalid actions from the Q-matrix, we eliminate the
+            #   first two actions, so the last action will be the third action
+            else:
+                self.action_sequence.append((colors[0], blocks[0]))
+
 
     def set_vel(self, diff_ang=0.0, diff_dist=float('inf')):
         """ Set the velocities of the robot """
