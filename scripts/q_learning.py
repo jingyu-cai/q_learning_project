@@ -2,7 +2,6 @@
 
 import rospy
 import os
-
 import numpy as np
 from numpy.random import choice
 
@@ -14,11 +13,13 @@ path_prefix = os.path.dirname(__file__) + "/action_states/"
 
 print_header = "=" * 10
 
-def conver_q_matrix_to_list(qmatrix):
+
+def convert_q_matrix_to_list(qmatrix):
     res = []
     for qrow in qmatrix:
         res.append(qrow.q_matrix_row)
     return res
+
 
 def print_state(states):
     colors = ['red', 'green', 'blue']
@@ -28,10 +29,12 @@ def print_state(states):
         output += f"{c} -> {b} ;"
     print(output)
 
+
 class QLearning(object):
 
 
     def __init__(self):
+
         # Once everything is set up this will be set to true
         self.initialized = False
 
@@ -41,6 +44,7 @@ class QLearning(object):
         # Set up publishers
         self.q_matrix_pub = rospy.Publisher("/q_learning/q_matrix", QMatrix, queue_size = 10)
         self.robot_action_pub = rospy.Publisher("/q_learning/robot_action", RobotMoveDBToBlock, queue_size = 10)
+        
         self.cnt = 0
 
         # Set up subscriber
@@ -95,14 +99,12 @@ class QLearning(object):
         self.initialize_q_matrix()
         self.q_matrix_pub.publish(self.q_matrix)
 
-        
-
+        # Now everything is initialized, sleep for 1 second to make sure
         self.initialized = True
         rospy.sleep(1)
         
+        # Start with a random action
         self.select_random_action()
-
-
 
 
     def initialize_q_matrix(self):
@@ -118,6 +120,7 @@ class QLearning(object):
 
     def select_random_action(self):
         """ Select a random action based on current state and publish it """
+
         self.cnt += 1
 
         # Do nothing if Q-matrix is not yet initialized
@@ -209,7 +212,7 @@ class QLearning(object):
 
         # Save the Q-matrix as a csv file
         data = self.q_matrix.q_matrix
-        data = conver_q_matrix_to_list(data)
+        data = convert_q_matrix_to_list(data)
         print(f"type of data[0]: {type(data[0])}")
         data = np.asarray(data)
 
