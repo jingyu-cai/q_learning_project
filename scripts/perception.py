@@ -5,6 +5,7 @@ import numpy as np
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
+import moveit_commander
 import os
 
 COLOR_BOUNDS = {'red': {'lb': np.array([0, 50, 0]),
@@ -14,6 +15,13 @@ COLOR_BOUNDS = {'red': {'lb': np.array([0, 50, 0]),
                     'blue': {'lb': np.array([100, 50, 0]), 
                             'ub': np.array([160, 255, 255])}}
 COLORS = ['red', 'green', 'blue']
+
+GO_TO_DB = "go_to_dumbbell"
+REACHED_DB = "reached_db"
+PICKED_UP_DB = "picked_up_dumbbell"
+MOVING_TO_BLOCK = "moving_to_block"
+REACHED_BLOCK = "reached_block"
+
 
 class DigitRecognizer(object):
     def __init__(self):
@@ -40,6 +48,15 @@ class DigitRecognizer(object):
         # For Sensory-Motor Control in controling the speed
         self.__prop = 0.15 
 
+        # the interface to the group of joints making up the turtlebot3
+        # openmanipulator arm
+        self.move_group_arm = moveit_commander.MoveGroupCommander("arm")
+
+        # the interface to the group of joints making up the turtlebot3
+        # openmanipulator gripper
+        self.move_group_gripper = moveit_commander.MoveGroupCommander("gripper")
+
+        self.robot_status = GO_TO_DB
         self.initalized = True
     
     def set_vel(self, diff_ang=0.0, diff_dist=float('inf')):
@@ -112,6 +129,9 @@ class DigitRecognizer(object):
                 if min_dist <= self.__goal_dist_in_front_of_dumbell:
                     # Stop the robot
                     self.pub_vel(0,0)
+                    # Sleep 1s to make sure the robot has stopped
+                    rospy.sleep(1)
+                    self.robot_status = REACHED_DB
                     print(f"---reached dumbell of color {color}----")
                 else:
                     # Rush STRAIGHT toward the dumbbell
@@ -131,6 +151,25 @@ class DigitRecognizer(object):
             ang_v, lin_v = self.set_vel()
             self.pub_vel(ang_v, lin_v)
 
+            if self.robot_status == REACHED_DB:
+                self.lift_dumbbell()
+
+
+    def lift_dumbbell(self):
+        if self.robot_status != REACHED_DB:
+            return 
+        arm_joint_goal = [0.0, 0.0, -0.45, -0.1]
+        gripper_joint_goal = [0.004, 0.004]
+        self.move_group_arm(arm_joint_goal, wait=True)
+        self.move_group_gripper(gripper_joint_goal, wait=True)
+        self.move_group_arm.stop()
+        self.move_group_gripper.stop()
+
+        self.robot_status = MOVING_TO_BLOCK
+
+
+                
+
             
 
 
@@ -140,6 +179,8 @@ class DigitRecognizer(object):
         # take the ROS message with the image and turn it into a format cv2 can use
         self.image = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
         self.move_to_dumbell('red')
+
+    
             
     def run(self):
         rospy.spin()
