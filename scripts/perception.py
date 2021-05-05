@@ -3,19 +3,22 @@
 import rospy, rospkg, cv2, cv_bridge
 import os
 import numpy as np
+import keras_ocr
 
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
 import moveit_commander
 
-# Define colors for the dumbbells
+# Define colors for the dumbbells and block number
 COLOR_BOUNDS = {'red': {'lb': np.array([0, 50, 0]),
                             'ub': np.array([50, 255, 255])},
                     'green': {'lb': np.array([50, 50, 0]),
                             'ub': np.array([100, 255, 255])},
                     'blue': {'lb': np.array([100, 50, 0]), 
-                            'ub': np.array([160, 255, 255])}}
+                            'ub': np.array([160, 255, 255])},
+                    'black': {'lb': np.array([0, 0, 0]), 
+                            'ub': np.array([255, 255, 50])}}
 COLORS = ['red', 'green', 'blue']
 
 # Define robot statuses to keep track of its actions
@@ -82,14 +85,17 @@ class RobotPerception(object):
         # Set up ROS / cv bridge
         self.bridge = cv_bridge.CvBridge()
 
+        # Download pre-trained model
+        self.pipeline = keras_ocr.pipeline.Pipeline()
+
         # Initialize array to hold and process images
         self.image = []
 
         # Initialize array to hold and process scan data
         self.__scan_data = []
 
-        # Minimum distance in front of dumbbell
-        self.__goal_dist_in_front_of_dumbbell = 0.23
+        # Minimum distance in front of dumbbell/block
+        self.__goal_dist_in_front = 0.21
 
         # For Sensory-Motor Control in controling the speed
         self.__prop = 0.15 
@@ -111,6 +117,7 @@ class RobotPerception(object):
         # Now everything is initialized
         self.initialized = True
 
+        print("hi im ready")
     
     def load_q_matrix(self):
         """ Load the trained Q-matrix csv file """
@@ -161,6 +168,8 @@ class RobotPerception(object):
             else:
                 self.action_sequence.append((colors[0], blocks[0]))
 
+        print(self.action_sequence)
+
 
     def set_vel(self, diff_ang=0.0, diff_dist=float('inf')):
         """ Set the velocities of the robot """
@@ -174,7 +183,7 @@ class RobotPerception(object):
             lin_v = 0.0
         
         # Stop if the robot is in front of the dumbbell
-        elif diff_dist < self.__goal_dist_in_front_of_dumbbell:
+        elif diff_dist < self.__goal_dist_in_front:
             print("=====I got you.=====")
             ang_v, lin_v = 0.0, 0.0
         
@@ -196,8 +205,76 @@ class RobotPerception(object):
         self.cmd_vel_pub.publish(self.twist)
 
 
+    def initialize_move_group(self):
+        """ Initialize the robot arm & gripper position so it can grab onto
+        the dumbbell """
+
+        # Set arm and gripper joint goals and move them
+        arm_joint_goal = [0.0, 0.45, 0.5, -0.9]
+        gripper_joint_goal = [0.01, 0.01]
+        self.move_group_arm.go(arm_joint_goal, wait=True)
+        self.move_group_gripper.go(gripper_joint_goal, wait=True)
+        self.move_group_arm.stop()
+        self.move_group_gripper.stop()
+
+
+    def lift_dumbbell(self):
+        """ Lift the dumbbell when robot reached the dumbbells """
+
+        # Do nothing if the robot hasn't reached the dumbbells
+        if self.robot_status != REACHED_DB:
+            return 
+
+        # Set arm and gripper joint goals and move them    
+        arm_joint_goal = [0.0, 0.0, -0.45, -0.1]
+        gripper_joint_goal = [0.004, 0.004]
+        self.move_group_arm.go(arm_joint_goal, wait=True)
+        self.move_group_gripper.go(gripper_joint_goal, wait=True)
+        self.move_group_arm.stop()
+        self.move_group_gripper.stop()
+
+        # After the robot grapped the dumbbells, it's time to move to the blocks
+        self.robot_status = MOVING_TO_BLOCK
+
+
+    def drop_dumbbell(self):
+        """ Drop the dumbbell when robot reached the blocks """
+
+        # Do nothing is the robot hasn't reached the blocks
+        if self.robot_status != REACHED_BLOCK:
+            return
+
+        # Set arm and gripper joint goals and move them
+        arm_joint_goal = [0.0, 0.45, 0.5, -0.9]
+        gripper_joint_goal = [0.01, 0.01]
+        self.move_group_arm.go(arm_joint_goal, wait=True)
+        self.move_group_gripper.go(gripper_joint_goal, wait=True)
+        self.move_group_arm.stop()
+        self.move_group_gripper.stop()
+
+        # After the robot dropped the dumbbells, it's time to go back to the dumbbells
+        self.robot_status = GO_TO_DB
+
+
+    def image_callback(self, data):
+        """ Process the image from the robot's RGB camera """
+
+        # Do nothing if initialization is not done
+        if (not self.initialized):
+            return
+
+        # Take the ROS message with the image and turn it into a format cv2 can use
+        self.image = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
+
+        self.move_to_dumbbell('red')
+
+
     def scan_callback(self, data):
         """ Store scan data in self.__scan_data to be processed """
+
+        # Do nothing if initialization is not done
+        if (not self.initialized):
+            return
 
         # Store the ranges data
         print("***** Got new scan! *****")
@@ -247,7 +324,7 @@ class RobotPerception(object):
                 
                 min_dist = min(self.__scan_data[-10:] + self.__scan_data[:10])
 
-                if min_dist <= self.__goal_dist_in_front_of_dumbbell:
+                if min_dist <= self.__goal_dist_in_front:
 
                     # Stop the robot
                     self.pub_vel(0,0)
@@ -284,70 +361,129 @@ class RobotPerception(object):
             self.pub_vel(ang_v, lin_v)
 
 
-    def initialize_move_group(self):
-        """ Initialize the robot arm & gripper position so it can grab onto
-        the dumbbell """
+    def is_correct_num(self, id: int, prediction_group):
+        """ Check if the detected number is the block ID we are looking for """
 
-        # Set arm and gripper joint goals and move them
-        arm_joint_goal = [0.0, 0.45, 0.6, -0.9]
-        gripper_joint_goal = [0.01, 0.01]
-        self.move_group_arm.go(arm_joint_goal, wait=True)
-        self.move_group_gripper.go(gripper_joint_goal, wait=True)
-        self.move_group_arm.stop()
-        self.move_group_gripper.stop()
+        # Sometimes the detector may recognize numbers as other numbers or 
+        #   characters, so we are grouping them into the same category
+        ones = ["1", "l", "i"]
+        twos = ["2"]
+        threes = ["3", "5", "8", "s"]
 
+        detected_num = 0
 
-    def lift_dumbbell(self):
-        """ Lift the dumbbell when robot reached the dumbbells """
+        if prediction_group[0][0] in ones:
+            detected_num = 1
+        elif prediction_group[0][0] in twos:
+            detected_num = 2
+        elif prediction_group[0][0] in threes:
+            detected_num = 3
 
-        # Do nothing if the robot hasn't reached the dumbbells
-        if self.robot_status != REACHED_DB:
-            return 
+        if detected_num == id:
+            return True
 
-        # Set arm and gripper joint goals and move them    
-        arm_joint_goal = [0.0, 0.0, -0.45, -0.1]
-        gripper_joint_goal = [0.004, 0.004]
-        self.move_group_arm.go(arm_joint_goal, wait=True)
-        self.move_group_gripper.go(gripper_joint_goal, wait=True)
-        self.move_group_arm.stop()
-        self.move_group_gripper.stop()
+        return False
 
-        # After the robot grapped the dumbbells, it's time to move to the blocks
-        self.robot_status = MOVING_TO_BLOCK
+    
+    def move_to_block(self, id: int):
+        """ Move to a block based on its ID """
 
-
-    def drop_dumbbell(self):
-        """ Drop the dumbbell when robot reached the blocks """
-
-        # Do nothing is the robot hasn't reached the blocks
-        if self.robot_status != REACHED_BLOCK:
+        # Do nothing if there are no images
+        if len(self.image) == 0:
+            print("-- Have not got the image --")
             return
 
-        # Set arm and gripper joint goals and move them
-        arm_joint_goal = [0.0, 0.45, 0.6, -0.9]
-        gripper_joint_goal = [0.01, 0.01]
-        self.move_group_arm.go(arm_joint_goal, wait=True)
-        self.move_group_gripper.go(gripper_joint_goal, wait=True)
-        self.move_group_arm.stop()
-        self.move_group_gripper.stop()
-
-        # After the robot dropped the dumbbells, it's time to go back to the dumbbells
-        self.robot_status = GO_TO_DB
-
-
-    def image_callback(self, data):
-        """ Process the image from the robot's RGB camera """
-
-        # Do nothing if initialization is not done
-        if (not self.initialized):
+        # Do nothing if there are no scan data
+        if len(self.__scan_data) == 0:
+            print("-- Have not got the scan --")
             return
 
-        # Take the ROS message with the image and turn it into a format cv2 can use
-        self.image = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
+        # Do nothing if the robot is not ready to move to block
+        if self.robot_status != MOVING_TO_BLOCK:
+            return
 
-        self.move_to_dumbbell('red')
+        # Turn image into HSV style
+        hsv = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
+        
+        # Get lower and upper bounds of the specified color
+        lb, ub = COLOR_BOUNDS['black']['lb'], COLOR_BOUNDS['black']['ub']
+        
+        # Mask and get moment of the color of the dumbbell
+        mask = cv2.inRange(hsv, lb, ub)
+        M = cv2.moments(mask)
 
-     
+        # Get the shape of the image to compute its center
+        h, w, d = self.image.shape
+
+        # If there are any pixels found for the desired color
+        if M['m00'] > 0:
+
+            # Call the recognizer on the image
+            prediction_group = self.pipeline.recognize([self.image])[0]
+            print("Got: " + str(prediction_group[0][0]))
+            
+            # Make sure we are getting the correct block ID
+            if is_correct_num(id, prediction_group):
+                
+                # Determine the center of the yellow pixels in the image
+                cx = int(M['m10']/M['m00'])
+                cy = int(M['m01']/M['m00'])
+
+                # Block's distance to the center of the camera
+                err = w/2 - cx
+
+                print(f"abs(err) / w : {abs(err) / w}")
+
+                # If the color center is at the front
+                if abs(err) / w < 0.05:
+                    
+                    min_dist = min(self.__scan_data[-10:] + self.__scan_data[:10])
+
+                    if min_dist <= self.__goal_dist_in_front:
+
+                        # Stop the robot
+                        self.pub_vel(0,0)
+
+                        # Sleep 1s to make sure the robot has stopped
+                        rospy.sleep(1)
+                        self.robot_status = REACHED_BLOCK
+                        print(f"---reached block of ID {id}----")
+
+                        self.drop_dumbbell()
+
+                    else:
+
+                        # Rush STRAIGHT toward the block
+                        ang_v, lin_v = self.set_vel(0, min_dist)
+                        self.pub_vel(ang_v, lin_v)
+
+                # If the color center is not right at the front yet
+                else:
+                    
+                    # Define k_p for proportional control            
+                    k_p = 1.0 / 1000.0
+
+                    # Slowly turn the head, so that the color center 
+                    # would be at the center of the camera
+                    self.pub_vel(k_p * err, 0)
+                    print(f"---turning to block of ID {id}----")
+
+
+            # If the number is not correct, then we keep looking
+            else:
+            
+                # Simply turn the head clockwise, without any linear speed
+                ang_v, lin_v = self.set_vel()
+                self.pub_vel(ang_v, lin_v)
+
+        # If we cannot see any pixel of the desired color
+        else:
+
+            # Simply turn the head clockwise, without any linear speed
+            ang_v, lin_v = self.set_vel()
+            self.pub_vel(ang_v, lin_v)
+        
+        
     def run(self):
         """ Run the node """
 
