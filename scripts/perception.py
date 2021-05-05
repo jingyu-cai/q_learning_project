@@ -28,6 +28,7 @@ REACHED_DB = "reached_db"
 MOVING_TO_BLOCK = "moving_to_block"
 REACHED_BLOCK = "reached_block"
 
+print(f"os cwd: {os.getcwd()}")
 # Path of directory on where this file is located
 path_prefix = os.path.dirname(__file__) + "/action_states/"
 
@@ -209,7 +210,7 @@ class RobotPerception(object):
         the dumbbell """
 
         # Set arm and gripper joint goals and move them
-        arm_joint_goal = [0.0, 0.45, 0.5, -0.9]
+        arm_joint_goal = [0.0, 0.65, 0.25, -0.9]
         gripper_joint_goal = [0.01, 0.01]
         self.move_group_arm.go(arm_joint_goal, wait=True)
         self.move_group_gripper.go(gripper_joint_goal, wait=True)
@@ -225,7 +226,7 @@ class RobotPerception(object):
             return 
 
         # Set arm and gripper joint goals and move them    
-        arm_joint_goal = [0.0, 0.0, -0.45, -0.1]
+        arm_joint_goal = [0.0, 0.1, -0.45, -0.1]
         gripper_joint_goal = [0.004, 0.004]
         self.move_group_arm.go(arm_joint_goal, wait=True)
         self.move_group_gripper.go(gripper_joint_goal, wait=True)
