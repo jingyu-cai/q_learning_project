@@ -11,12 +11,21 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 
 #### Q Learning
 
-	
 	$roscore
 	$roslaunch q_learning_project training.launch
 	$rosrun q_learning_project phantom_robot_movement.py
 
+
+#### Robot Perception & Movement
+
+    $roscore
+    $roslaunch q_learning_project turtlebot3_intro_robo_manipulation.launch
+    $roslaunch turtlebot3_manipulation_moveit_config move_group.launch
+    $rosrun q_learning_project perception.py
+
+
 <span style="color:red">**IMPORTANT:**</span> remember clicking the <span style="color:yellow">**PLAY**</span> button!	
+
 
 ### Component implementation and testing
 - **Q-learning algorithm**
