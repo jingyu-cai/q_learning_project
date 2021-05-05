@@ -117,7 +117,6 @@ class RobotPerception(object):
         # Now everything is initialized
         self.initialized = True
 
-        print("hi im ready")
     
     def load_q_matrix(self):
         """ Load the trained Q-matrix csv file """
@@ -417,6 +416,9 @@ class RobotPerception(object):
 
         # If there are any pixels found for the desired color
         if M['m00'] > 0:
+
+            # Stop to look at the image
+            self.pub_vel(0, 0)
 
             # Call the recognizer on the image
             prediction_group = self.pipeline.recognize([self.image])[0]
