@@ -21,7 +21,7 @@ COLORS = ['red', 'green', 'blue']
 # Define robot statuses to keep track of its actions
 GO_TO_DB = "go_to_dumbbell"
 REACHED_DB = "reached_db"
-PICKED_UP_DB = "picked_up_dumbbell"
+# PICKED_UP_DB = "picked_up_dumbbell"
 MOVING_TO_BLOCK = "moving_to_block"
 REACHED_BLOCK = "reached_block"
 
@@ -89,18 +89,21 @@ class RobotPerception(object):
         self.__scan_data = []
 
         # Minimum distance in front of dumbbell
-        self.__goal_dist_in_front_of_dumbbell = 0.2
+        self.__goal_dist_in_front_of_dumbbell = 0.23
 
         # For Sensory-Motor Control in controling the speed
         self.__prop = 0.15 
 
-        # the interface to the group of joints making up the turtlebot3
-        # openmanipulator arm
+        # The interface to the group of joints making up the turtlebot3
+        #   openmanipulator arm
         self.move_group_arm = moveit_commander.MoveGroupCommander("arm")
 
-        # the interface to the group of joints making up the turtlebot3
-        # openmanipulator gripper
+        # The interface to the group of joints making up the turtlebot3
+        #   openmanipulator gripper
         self.move_group_gripper = moveit_commander.MoveGroupCommander("gripper")
+
+        # Initialize starting robot arm and gripper position
+        self.initialize_move_group()
 
         # First, robot's status set to GO_TO_DB
         self.robot_status = GO_TO_DB
@@ -254,6 +257,8 @@ class RobotPerception(object):
                     self.robot_status = REACHED_DB
                     print(f"---reached dumbbell of color {color}----")
 
+                    self.lift_dumbbell()
+
                 else:
 
                     # Rush STRAIGHT toward the dumbbell
@@ -268,7 +273,7 @@ class RobotPerception(object):
 
                 # Slowly turn the head, so that the color center 
                 # would be at the center of the camera
-                self.pub_vel(k_p*err, 0)
+                self.pub_vel(k_p * err, 0)
                 print(f"---turning to dumbbell of color {color}----")
 
         # If we cannot see any pixel of the desired color
@@ -278,8 +283,18 @@ class RobotPerception(object):
             ang_v, lin_v = self.set_vel()
             self.pub_vel(ang_v, lin_v)
 
-            if self.robot_status == REACHED_DB:
-                self.lift_dumbbell()
+
+    def initialize_move_group(self):
+        """ Initialize the robot arm & gripper position so it can grab onto
+        the dumbbell """
+
+        # Set arm and gripper joint goals and move them
+        arm_joint_goal = [0.0, 0.45, 0.6, -0.9]
+        gripper_joint_goal = [0.01, 0.01]
+        self.move_group_arm.go(arm_joint_goal, wait=True)
+        self.move_group_gripper.go(gripper_joint_goal, wait=True)
+        self.move_group_arm.stop()
+        self.move_group_gripper.stop()
 
 
     def lift_dumbbell(self):
@@ -292,13 +307,32 @@ class RobotPerception(object):
         # Set arm and gripper joint goals and move them    
         arm_joint_goal = [0.0, 0.0, -0.45, -0.1]
         gripper_joint_goal = [0.004, 0.004]
-        self.move_group_arm(arm_joint_goal, wait=True)
-        self.move_group_gripper(gripper_joint_goal, wait=True)
+        self.move_group_arm.go(arm_joint_goal, wait=True)
+        self.move_group_gripper.go(gripper_joint_goal, wait=True)
         self.move_group_arm.stop()
         self.move_group_gripper.stop()
 
-        # After the robot grapped the dumbbells, now it's time to move to the blocks
+        # After the robot grapped the dumbbells, it's time to move to the blocks
         self.robot_status = MOVING_TO_BLOCK
+
+
+    def drop_dumbbell(self):
+        """ Drop the dumbbell when robot reached the blocks """
+
+        # Do nothing is the robot hasn't reached the blocks
+        if self.robot_status != REACHED_BLOCK:
+            return
+
+        # Set arm and gripper joint goals and move them
+        arm_joint_goal = [0.0, 0.45, 0.6, -0.9]
+        gripper_joint_goal = [0.01, 0.01]
+        self.move_group_arm.go(arm_joint_goal, wait=True)
+        self.move_group_gripper.go(gripper_joint_goal, wait=True)
+        self.move_group_arm.stop()
+        self.move_group_gripper.stop()
+
+        # After the robot dropped the dumbbells, it's time to go back to the dumbbells
+        self.robot_status = GO_TO_DB
 
 
     def image_callback(self, data):
