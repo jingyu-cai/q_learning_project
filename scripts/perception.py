@@ -96,7 +96,8 @@ class RobotPerception(object):
         self.__scan_data = []
 
         # Minimum distance in front of dumbbell/block
-        self.__goal_dist_in_front = 0.21
+        # ORIGINAL = 0.21
+        self.__goal_dist_in_front = 0.22
 
         # For Sensory-Motor Control in controling the speed
         self.__prop = 0.15 
@@ -210,7 +211,7 @@ class RobotPerception(object):
         the dumbbell """
 
         # Set arm and gripper joint goals and move them
-        arm_joint_goal = [0.0, 0.65, 0.25, -0.9]
+        arm_joint_goal = [0.0, 0.65, 0.15, -0.9]
         gripper_joint_goal = [0.01, 0.01]
         self.move_group_arm.go(arm_joint_goal, wait=True)
         self.move_group_gripper.go(gripper_joint_goal, wait=True)
@@ -226,12 +227,18 @@ class RobotPerception(object):
             return 
 
         # Set arm and gripper joint goals and move them    
-        arm_joint_goal = [0.0, 0.1, -0.45, -0.1]
+        arm_joint_goal = [0.0, 0.05, -0.45, -0.1]
         gripper_joint_goal = [0.004, 0.004]
         self.move_group_arm.go(arm_joint_goal, wait=True)
         self.move_group_gripper.go(gripper_joint_goal, wait=True)
         self.move_group_arm.stop()
         self.move_group_gripper.stop()
+
+        # Step back
+        print("----- stepping back!----")
+        self.pub_vel(0, -0.5)
+        rospy.sleep(0.8)
+        self.pub_vel(0, 0)
 
         # After the robot grapped the dumbbells, it's time to move to the blocks
         self.robot_status = MOVING_TO_BLOCK
@@ -323,6 +330,8 @@ class RobotPerception(object):
             if abs(err) / w < 0.05:
                 
                 min_dist = min(self.__scan_data[-10:] + self.__scan_data[:10])
+
+                print(f"min_dist: {min_dist}")
 
                 if min_dist <= self.__goal_dist_in_front:
 
