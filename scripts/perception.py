@@ -4,6 +4,7 @@ import rospy, rospkg, cv2, cv_bridge
 import os
 import numpy as np
 import keras_ocr
+import math
 
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
@@ -24,7 +25,7 @@ COLORS = ['red', 'green', 'blue']
 # Define robot statuses to keep track of its actions
 GO_TO_DB = "go_to_dumbbell"
 REACHED_DB = "reached_db"
-# PICKED_UP_DB = "picked_up_dumbbell"
+PICKED_UP_DB = "picked_up_dumbbell"
 MOVING_TO_BLOCK = "moving_to_block"
 REACHED_BLOCK = "reached_block"
 
@@ -76,9 +77,8 @@ class RobotPerception(object):
         self.q_matrix = []
         self.load_q_matrix()
 
-        # Set up a list of tuples to store the action sequence and step (0, 1, 2)
+        # Set up a list of tuples to store the action sequence
         self.action_sequence = []
-        self.action_step = 0
 
         # Create an empty Twist msg
         self.twist = Twist()
@@ -97,7 +97,8 @@ class RobotPerception(object):
 
         # Minimum distance in front of dumbbell/block
         # ORIGINAL = 0.21
-        self.__goal_dist_in_front = 0.22
+        self.__goal_dist_in_front__db = 0.22
+        self.__goal_dist_in_front_block = 0.5
 
         # For Sensory-Motor Control in controling the speed
         self.__prop = 0.15 
@@ -184,7 +185,7 @@ class RobotPerception(object):
             lin_v = 0.0
         
         # Stop if the robot is in front of the dumbbell
-        elif diff_dist < self.__goal_dist_in_front:
+        elif diff_dist < self.__goal_dist_in_front__db:
             print("=====I got you.=====")
             ang_v, lin_v = 0.0, 0.0
         
@@ -240,8 +241,8 @@ class RobotPerception(object):
         rospy.sleep(0.8)
         self.pub_vel(0, 0)
 
-        # After the robot grapped the dumbbells, it's time to move to the blocks
-        self.robot_status = MOVING_TO_BLOCK
+        # After the robot grapped the dumbbells, it's time to identify the blocks
+        self.robot_status = PICKED_UP_DB
 
 
     def drop_dumbbell(self):
@@ -333,16 +334,19 @@ class RobotPerception(object):
 
                 print(f"min_dist: {min_dist}")
 
-                if min_dist <= self.__goal_dist_in_front:
+                if min_dist <= self.__goal_dist_in_front__db:
 
                     # Stop the robot
                     self.pub_vel(0,0)
 
                     # Sleep 1s to make sure the robot has stopped
                     rospy.sleep(1)
+
+                    # Change status to reached dumbbell
                     self.robot_status = REACHED_DB
                     print(f"---reached dumbbell of color {color}----")
 
+                    # Lift the dumbbell
                     self.lift_dumbbell()
 
                 else:
@@ -358,7 +362,7 @@ class RobotPerception(object):
                 k_p = 1.0 / 1000.0
 
                 # Slowly turn the head, so that the color center 
-                # would be at the center of the camera
+                #   would be at the center of the camera
                 self.pub_vel(k_p * err, 0)
                 print(f"---turning to dumbbell of color {color}----")
 
@@ -381,6 +385,9 @@ class RobotPerception(object):
 
         detected_num = 0
 
+        # We always grab the first image in the list for detection, the robot
+        #   turning movement will ensure that this will always be the next block
+        #   it sees on the left
         if prediction_group[0][0] in ones:
             detected_num = 1
         elif prediction_group[0][0] in twos:
@@ -407,10 +414,6 @@ class RobotPerception(object):
             print("-- Have not got the scan --")
             return
 
-        # Do nothing if the robot is not ready to move to block
-        if self.robot_status != MOVING_TO_BLOCK:
-            return
-
         # Turn image into HSV style
         hsv = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
         
@@ -421,81 +424,112 @@ class RobotPerception(object):
         mask = cv2.inRange(hsv, lb, ub)
         M = cv2.moments(mask)
 
-        # Get the shape of the image to compute its center
-        h, w, d = self.image.shape
-
-        # If there are any pixels found for the desired color
-        if M['m00'] > 0:
-
-            # Stop to look at the image
-            self.pub_vel(0, 0)
-
-            # Call the recognizer on the image
-            prediction_group = self.pipeline.recognize([self.image])[0]
-            print("Got: " + str(prediction_group[0][0]))
+        # If the robot has picked up dumbbell but hasn't detected the desired block yet
+        if self.robot_status == PICKED_UP_DB:
             
-            # Make sure we are getting the correct block ID
-            if is_correct_num(id, prediction_group):
+            # If there are any pixels found for the desired color
+            if M['m00'] > 0:
                 
-                # Determine the center of the yellow pixels in the image
-                cx = int(M['m10']/M['m00'])
-                cy = int(M['m01']/M['m00'])
+                # Stop to look at the block
+                self.pub_vel(0, 0)
 
-                # Block's distance to the center of the camera
-                err = w/2 - cx
+                # Call the recognizer on the image
+                prediction_group = self.pipeline.recognize([self.image])[0]
 
-                print(f"abs(err) / w : {abs(err) / w}")
+                # If the recognizer cannot recognize the image, keep turning
+                if len(prediction_group) == 0:
 
-                # If the color center is at the front
-                if abs(err) / w < 0.05:
+                    # Publish a small angular velocity so the robot doesn't overshoot
+                    self.pub_vel(0.01, 0)
+                    rospy.sleep(0.5)
                     
-                    min_dist = min(self.__scan_data[-10:] + self.__scan_data[:10])
+                # If the recognizer has recognized an image, we check if the first 
+                #   one is the correct one
+                else:
+                
+                    print("Successfully got: " + str(prediction_group[0][0]))
 
-                    if min_dist <= self.__goal_dist_in_front:
+                    # Make sure we have the correct num
+                    if is_correct_num(id, prediction_group):
 
-                        # Stop the robot
-                        self.pub_vel(0,0)
+                        # Set robot status to move to block
+                        self.robot_status = MOVING_TO_BLOCK
 
-                        # Sleep 1s to make sure the robot has stopped
-                        rospy.sleep(1)
-                        self.robot_status = REACHED_BLOCK
-                        print(f"---reached block of ID {id}----")
-
-                        self.drop_dumbbell()
-
+                    # Otherwise, we keep turning
                     else:
 
-                        # Rush STRAIGHT toward the block
-                        ang_v, lin_v = self.set_vel(0, min_dist)
-                        self.pub_vel(ang_v, lin_v)
-
-                # If the color center is not right at the front yet
-                else:
-                    
-                    # Define k_p for proportional control            
-                    k_p = 1.0 / 1000.0
-
-                    # Slowly turn the head, so that the color center 
-                    # would be at the center of the camera
-                    self.pub_vel(k_p * err, 0)
-                    print(f"---turning to block of ID {id}----")
-
-
-            # If the number is not correct, then we keep looking
-            else:
+                        # We will publish a specific degree so that the robot always
+                        #   only sees the next block on its left, so we always grab
+                        #   the first image in the list for detection
+                        self.pub_vel(math.radians(10), 0)
+                        rospy.sleep(6)
             
-                # Simply turn the head clockwise, without any linear speed
-                ang_v, lin_v = self.set_vel()
-                self.pub_vel(ang_v, lin_v)
+            # If we cannot see the pixel of the desired color
+            else:
+                
+                # Keep turning
+                self.pub_vel(0.3, 0)
 
-        # If we cannot see any pixel of the desired color
+        # If the robot has found the desired block, then move to it
+        elif self.robot_status == MOVING_TO_BLOCK:
+
+            # TODO: This needs to be revised???
+
+            # Get the shape of the image to compute its center
+            h, w, d = self.image.shape
+
+            cx = int(M['m10']/M['m00'])
+            cy = int(M['m01']/M['m00'])
+
+            # Dumbbell's distance to the center of the camera
+            err = w/2 - cx
+
+            print(f"abs(err) / w : {abs(err) / w}")
+
+            # If the color center is at the front
+            if abs(err) / w < 0.05:
+                
+                min_dist = min(self.__scan_data[-10:] + self.__scan_data[:10])
+
+                print(f"min_dist: {min_dist}")
+
+                if min_dist <= self.__goal_dist_in_front_block:
+
+                    # Stop the robot
+                    self.pub_vel(0,0)
+
+                    # Sleep 1s to make sure the robot has stopped
+                    rospy.sleep(1)
+
+                    # Change status to reached block
+                    self.robot_status = REACHED_BLOCK
+                    print(f"---reached block of ID {id}----")
+
+                    # Drop the dumbbell
+                    self.drop_dumbbell()
+
+                else:
+
+                    # Rush STRAIGHT toward the block
+                    ang_v, lin_v = self.set_vel(0, min_dist)
+                    self.pub_vel(ang_v, lin_v)
+
+            # If the color center is not right at the front yet
+            else:
+                
+                # Define k_p for proportional control            
+                k_p = 1.0 / 1000.0
+
+                # Slowly turn the head, so that the color center 
+                #   would be at the center of the camera
+                self.pub_vel(k_p * err, 0)
+                print(f"---turning to block of id {ID}----")
+
+        # Do nothing if the robot isn't in any of the two statuses
         else:
+            return
+        
 
-            # Simply turn the head clockwise, without any linear speed
-            ang_v, lin_v = self.set_vel()
-            self.pub_vel(ang_v, lin_v)
-        
-        
     def run(self):
         """ Run the node """
 
