@@ -115,7 +115,7 @@ class RobotPerception(object):
         self.initialize_move_group()
 
         # First, robot's status set to GO_TO_DB
-        self.robot_status = GO_TO_DB
+        self.robot_status = PICKED_UP_DB
 
         # Now everything is initialized
         self.initialized = True
@@ -274,7 +274,7 @@ class RobotPerception(object):
         # Take the ROS message with the image and turn it into a format cv2 can use
         self.image = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
 
-        self.move_to_dumbbell('red')
+        self.move_to_block(2)
 
 
     def scan_callback(self, data):
@@ -381,7 +381,7 @@ class RobotPerception(object):
         #   characters, so we are grouping them into the same category
         ones = ["1", "l", "i"]
         twos = ["2"]
-        threes = ["3", "5", "8", "s"]
+        threes = ["3", "5", "8", "s", "b"]
 
         detected_num = 0
 
@@ -446,11 +446,11 @@ class RobotPerception(object):
                 # If the recognizer has recognized an image, we check if the first 
                 #   one is the correct one
                 else:
-                
+                    
                     print("Successfully got: " + str(prediction_group[0][0]))
 
                     # Make sure we have the correct num
-                    if is_correct_num(id, prediction_group):
+                    if self.is_correct_num(id, prediction_group):
 
                         # Set robot status to move to block
                         self.robot_status = MOVING_TO_BLOCK
@@ -523,7 +523,7 @@ class RobotPerception(object):
                 # Slowly turn the head, so that the color center 
                 #   would be at the center of the camera
                 self.pub_vel(k_p * err, 0)
-                print(f"---turning to block of id {ID}----")
+                print(f"---turning to block of ID {id}----")
 
         # Do nothing if the robot isn't in any of the two statuses
         else:
