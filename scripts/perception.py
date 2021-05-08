@@ -27,6 +27,7 @@ REACHED_DB = "reached_db"
 # PICKED_UP_DB = "picked_up_dumbbell"
 MOVING_TO_BLOCK = "moving_to_block"
 REACHED_BLOCK = "reached_block"
+BLOCK_DETECTED  = "block_detected"
 
 print(f"os cwd: {os.getcwd()}")
 # Path of directory on where this file is located
@@ -114,7 +115,8 @@ class RobotPerception(object):
         self.initialize_move_group()
 
         # First, robot's status set to GO_TO_DB
-        self.robot_status = GO_TO_DB
+        #self.robot_status = GO_TO_DB
+        self.robot_status = MOVING_TO_BLOCK
 
         # Now everything is initialized
         self.initialized = True
@@ -172,7 +174,7 @@ class RobotPerception(object):
         print(self.action_sequence)
 
 
-    def set_vel(self, diff_ang=0.0, diff_dist=float('inf')):
+    def set_vel(self, diff_ang=0.0, diff_dist=float('inf'), default_ang_vel = 0.05):
         """ Set the velocities of the robot """
 
         ang_v, lin_v = None, None
@@ -180,7 +182,7 @@ class RobotPerception(object):
         # Keep turning if the robot cannot see anything
         if diff_dist == float("inf"):
             print("=====I can't see it! Turning turning=====")
-            ang_v = 0.05
+            ang_v = default_ang_vel
             lin_v = 0.0
         
         # Stop if the robot is in front of the dumbbell
@@ -201,9 +203,10 @@ class RobotPerception(object):
         """ To publish a twist to the cmd_vel channel """
 
         # Set linear and angular velocities and publish
-        self.twist.linear.x = lin_v
-        self.twist.angular.z = ang_v
-        self.cmd_vel_pub.publish(self.twist)
+        new_twist = Twist()
+        new_twist.linear.x = lin_v
+        new_twist.angular.z = ang_v
+        self.cmd_vel_pub.publish(new_twist)
 
 
     def initialize_move_group(self):
@@ -273,7 +276,8 @@ class RobotPerception(object):
         # Take the ROS message with the image and turn it into a format cv2 can use
         self.image = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
 
-        self.move_to_dumbbell('red')
+        #self.move_to_dumbbell('red')
+        self.move_to_block(1)
 
 
     def scan_callback(self, data):
@@ -284,7 +288,7 @@ class RobotPerception(object):
             return
 
         # Store the ranges data
-        print("***** Got new scan! *****")
+        #print("***** Got new scan! *****")
         self.__scan_data = data.ranges
 
 
@@ -372,6 +376,8 @@ class RobotPerception(object):
 
     def is_correct_num(self, id: int, prediction_group):
         """ Check if the detected number is the block ID we are looking for """
+        if len(prediction_group) == 0:
+            return False
 
         # Sometimes the detector may recognize numbers as other numbers or 
         #   characters, so we are grouping them into the same category
@@ -431,11 +437,20 @@ class RobotPerception(object):
             self.pub_vel(0, 0)
 
             # Call the recognizer on the image
+
             prediction_group = self.pipeline.recognize([self.image])[0]
-            print("Got: " + str(prediction_group[0][0]))
+            print(f"prediction_group: {prediction_group}")
+            
+
+            if len(prediction_group) > 0:
+                print(f"prediction_group[0] : {prediction_group[0]}")
+                print("Got: " + str(prediction_group[0][0]))
             
             # Make sure we are getting the correct block ID
-            if is_correct_num(id, prediction_group):
+            if self.is_correct_num(id, prediction_group):
+                self.robot_status = BLOCK_DETECTED
+
+                print("---- Got correct number ----")
                 
                 # Determine the center of the yellow pixels in the image
                 cx = int(M['m10']/M['m00'])
@@ -485,8 +500,11 @@ class RobotPerception(object):
             else:
             
                 # Simply turn the head clockwise, without any linear speed
-                ang_v, lin_v = self.set_vel()
+                ang_v, lin_v = self.set_vel(default_ang_vel=1.3)
                 self.pub_vel(ang_v, lin_v)
+                print("((((((( speed 1.3 ))))))))")
+                rospy.sleep(0.6)
+
 
         # If we cannot see any pixel of the desired color
         else:
@@ -494,6 +512,7 @@ class RobotPerception(object):
             # Simply turn the head clockwise, without any linear speed
             ang_v, lin_v = self.set_vel()
             self.pub_vel(ang_v, lin_v)
+            
         
         
     def run(self):
