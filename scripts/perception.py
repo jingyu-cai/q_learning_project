@@ -19,7 +19,7 @@ COLOR_BOUNDS = {'red': {'lb': np.array([0, 50, 0]),
                     'blue': {'lb': np.array([100, 50, 0]), 
                             'ub': np.array([160, 255, 255])},
                     'black': {'lb': np.array([0, 0, 0]), 
-                            'ub': np.array([255, 255, 50])}}
+                            'ub': np.array([180, 255, 50])}}
 COLORS = ['red', 'green', 'blue']
 
 # Define robot statuses to keep track of its actions
@@ -274,8 +274,6 @@ class RobotPerception(object):
         # Take the ROS message with the image and turn it into a format cv2 can use
         self.image = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
 
-        self.move_to_block(2)
-
 
     def scan_callback(self, data):
         """ Store scan data in self.__scan_data to be processed """
@@ -381,7 +379,7 @@ class RobotPerception(object):
         #   characters, so we are grouping them into the same category
         ones = ["1", "l", "i"]
         twos = ["2"]
-        threes = ["3", "5", "8", "s", "b"]
+        threes = ["3", "5", "8", "s", "b", "81"]
 
         detected_num = 0
 
@@ -440,7 +438,7 @@ class RobotPerception(object):
                 if len(prediction_group) == 0:
 
                     # Publish a small angular velocity so the robot doesn't overshoot
-                    self.pub_vel(0.01, 0)
+                    self.pub_vel(0.1, 0)
                     rospy.sleep(0.5)
                     
                 # If the recognizer has recognized an image, we check if the first 
@@ -463,7 +461,7 @@ class RobotPerception(object):
                         #   the first image in the list for detection
                         self.pub_vel(math.radians(10), 0)
                         rospy.sleep(6)
-            
+
             # If we cannot see the pixel of the desired color
             else:
                 
@@ -473,7 +471,8 @@ class RobotPerception(object):
         # If the robot has found the desired block, then move to it
         elif self.robot_status == MOVING_TO_BLOCK:
 
-            # TODO: This needs to be revised???
+            # TODO: This needs to be revised??? 
+            # I only checked when robot moves to block number 2 and it works, not sure about 1 and 3
 
             # Get the shape of the image to compute its center
             h, w, d = self.image.shape
@@ -533,8 +532,18 @@ class RobotPerception(object):
     def run(self):
         """ Run the node """
 
-        # Keep the program alive
-        rospy.spin()
+        # Set a rate to maintain the frequency of execution
+        r = rospy.Rate(5)
+
+        # Run the program based on different statuses
+        # TODO: This part needs to be automated
+        while not rospy.is_shutdown():
+            if self.robot_status == GO_TO_DB:
+                self.move_to_dumbbell('red')
+            elif self.robot_status == PICKED_UP_DB or self.robot_status == MOVING_TO_BLOCK:
+                self.move_to_block(2)
+            
+            r.sleep()
 
 
 if __name__ == "__main__":
