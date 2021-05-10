@@ -387,7 +387,7 @@ class RobotAction(object):
         # Sometimes the detector may recognize numbers as other numbers or 
         #   characters, so we are grouping them into the same category
         ones = ["1", "l", "i"]
-        twos = ["2", "e"]
+        twos = ["2"]
         threes = ["3", "5", "8", "s", "b", "81"]
 
         detected_num = 0
