@@ -31,16 +31,16 @@
   <!-- run controllers -->
   <include file="$(find turtlebot3_manipulation_gazebo)/launch/turtlebot3_manipulation_controller.launch"/>
 
-  <!-- run turtlebot3_intro_robo_manipulation.launch -->
-  <include file="$(find q_learning_project)/launch/turtlebot3_intro_robo_manipulation.launch"/>
-
   <!-- Run a transformation between the robot and its laser -->
   <node pkg="tf" type="static_transform_publisher" name="link2_broadcaster" args="-0.1524 0.0 0.1016 0 0 0 /base_footprint /base_scan 100" />
 
   <!-- Run a transformation between the robot and its laser -->
   <node pkg="tf" type="static_transform_publisher" name="link3_broadcaster" args="0.0 0.0 0.1016 0 0 0 /base_footprint /camera_rgb_optical_frame 100" />
 
+  <!-- run world restting node -->
+  <node name="reset_world_q_learning" pkg="q_learning_project" type="reset_world.py" respawn="true" />
+
   <!-- run robot action node -->
-  <node name="robot_action" pkg="q_learning_project" type="action.py" respawn="true" output='screen'/>
+  <node name="robot_action" pkg="q_learning_project" type="robot_action.py" respawn="false" output='screen'/>
 
 </launch>
