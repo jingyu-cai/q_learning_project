@@ -34,7 +34,7 @@ print(f"os cwd: {os.getcwd()}")
 path_prefix = os.path.dirname(__file__) + "/action_states/"
 
 # Path of where the trained Q-matrix csv file is located
-Q_MATRIX_PATH = "q_matrix.csv"
+Q_MATRIX_PATH = os.path.dirname(__file__) + "/q_matrix.csv"
 
 
 class RobotMovement(object):
@@ -135,10 +135,6 @@ class RobotMovement(object):
     def get_action_sequence(self):
         """ Get the sequence of actions for the robot to move the dumbbells
         to the correct blocks based on the trained Q-matrix """
-
-        # Do nothing if initialization is not done
-        if not self.initialized:
-            return
         
         # Start at the origin
         curr_state = 0
