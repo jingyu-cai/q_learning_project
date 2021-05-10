@@ -102,7 +102,7 @@ class RobotMovement(object):
         # Minimum distance in front of dumbbell/block
         # ORIGINAL = 0.21
         self.__goal_dist_in_front__db = 0.22
-        self.__goal_dist_in_front_block = 0.65
+        self.__goal_dist_in_front_block = 0.55
 
         # For Sensory-Motor Control in controling the speed
         self.__prop = 0.15 
@@ -181,7 +181,7 @@ class RobotMovement(object):
         # Keep turning if the robot cannot see anything
         if diff_dist == float("inf"):
             print("=====I can't see it! Turning turning=====")
-            ang_v = 0.05
+            ang_v = 0.15
             lin_v = 0.0
         
         # Stop if the robot is in front of the dumbbell
@@ -387,7 +387,7 @@ class RobotMovement(object):
         # Sometimes the detector may recognize numbers as other numbers or 
         #   characters, so we are grouping them into the same category
         ones = ["1", "l", "i"]
-        twos = ["2"]
+        twos = ["2", "e"]
         threes = ["3", "5", "8", "s", "b", "81"]
 
         detected_num = 0
