@@ -515,11 +515,11 @@ class RobotAction(object):
             else:
                     
                 # Define k_p for proportional control            
-                k_p = 1.0 / 1500.0
+                k_p = 1.0 / 2500.0
 
                 # Slowly turn the head while going forwards, so that the 
                 #   color center would be at the center of the camera
-                self.pub_vel(k_p * err, 0.25)
+                self.pub_vel(k_p * err, 0.3)
                 print(f"---turning to block of ID {id}----")
 
         # Do nothing if the robot isn't in any of the two statuses
