@@ -60,10 +60,10 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 	$ roslaunch q_learning_project training.launch
 #### Robot Perception & Movement
 	$ roscore
-    	$ roslaunch q_learning_project action.launch
+$ roslaunch q_learning_project action.launch
 ## Writeup
 
-Please see the code from the master branch!
+**Please see the code from the master branch!**
 
 ### Objectives description
 For this project, the objective is to first train a Q-matrix based on the Q-learning algorithm. Then, with the trained Q-matrix that specifices what action to take in a particular state to maximize the received reward, we need to make the robot perform a sequence of perceptions and movements to place each dumbbell in front of the correct block.
@@ -108,13 +108,13 @@ For both *moving to dumbbell* and *moving to block*, we follow the same idea: fi
 - **Moving to the right spot in order to pick up a dumbbell**: This component is tightly integrated with perception so the robot can always keep track of the right spot of the dumbbell.
 	- `move_to_dumbbell()`:
 		- Rotation: We use an error term `err = w/2 - cx` (`cx` is the x coordinate of the pixel center) and applied sensory control to set the angular speed.  Once the err ratio `ratio = err / w < 0.05`, we determine that the center is already in front of the robot.
-		- Moving-Forward: we use the laser scan data to determine the distance. Specifically, we take the minimum distance within `[-10, 10]` euler degree range and denote it as `min_dist`, and use sensory control again to set the linear speed. Once `min_dist < goal_dist`, we stop the robot immediately.
+		- Moving-Forward: we use the laser scan data to determine the distance. Specifically, we take the minimum distance within `[-10, 10]` euler degree range and denote it as `min_dist`, and use sensory control again to set the linear speed. Once `min_dist < __goal_dist_in_front_db`, we stop the robot immediately.
 - **Picking up the dumbbell**: The arms-and-gripper group has two state: *initial_pose* is with the arm leaning forward, gripper wide open, and *lifting_pose* is with the arm rising up, gripper tightly closed. 
 	- `initialize_move_group()`: We set the robot to *initial_pose* at the start so the robot can smoothly lock onto the dumbbells;
-	- `lift_dumbbell`: We tuned the `goal_dist` so that when the robot stops by the dumbbell, it just needs to switch to *lifting_pose*. Once the dumbbell is lifted up, the robot would move back for a deterministic distance (`self.pub_vel(0, -0.5), rospy.sleep(0.8)`), so that when it rotates, it won't be bumping into other dumbbells.
+	- `lift_dumbbell()`: We tuned the `self.__goal_dist_in_front_db` so that when the robot stops by the dumbbell, it just needs to switch to *lifting_pose*. Once the dumbbell is lifted up, the robot would move back for a deterministic distance (`self.pub_vel(0, -0.5), rospy.sleep(0.8)`), so that when it rotates, it won't be bumping into other dumbbells.
 - **Moving to the desired destination (numbered block) with the dumbbell**: This component is tightly integrated with perception so the robot can always keep track of the right spot of the block.
 	- `move_to_block()`:
-		Following the perception part of the block, once we get the correct pattern from the camera, we would move to the center of black pixels in the view. The idea is nearly identical to `move_to_db`: use the `err` term to set angular speed and rotate so that the center of the black pixels is in front of the robot. Then use laser scan to get the `min_dist`, and apply sensory control to set the linear speed. Once the `min_dist < goal_dist_block`, we stop the robot. 
+		Following the perception part of the block, once we get the correct pattern from the camera, we would move to the center of black pixels in the view. The idea is nearly identical to `move_to_db`: use the `err` term to set angular speed and rotate so that the center of the black pixels is in front of the robot. Then use laser scan to get the `min_dist`, and apply sensory control to set the linear speed. Once the `min_dist < __goal_dist_in_front_block`, we stop the robot. 
 		Since we are turning by a large angle to make sure that there's only one block in the center view, all black pixels should successfully lead the robot to the correct block. But there could be case that in the view we are seeing *two* sides of the cube, so we might be moving toward the *edge* of the block but not the right front of the block. To solve this problem, we hard-coded some angular bias so that the robot can move closer to the block's front side.
 - **Putting the dumbbell back down at the desired destination**: We set the arms-and-gripper group back to the *initial_pose* so the dumbbell can be placed on the ground.
 	- `drop_dumbbell()`: Once the robot reaches the correct block, it puts down the arm and release the gripper to put the dumbbell. The robot also stepped back to avoid hitting the dumbbell when rotating. (Note that we use a class property `self.robot_status` to ensure the action sequence, i.e. `GO_TO_DB -> REACHED_DB -> PICKED_UP_DB -> MOVING_TO_BLOCK -> REACHED_BLOCK`. But while running with `action.launch`, we notice that the `reset_world` function would be triggered if the dumbbell is close enough to the block, *though not dropped yet*. Hence we're getting error for incorrect `self.robot_status` after `reset_world`, but it seems acceptable according to @Sarah Sebo.) 
