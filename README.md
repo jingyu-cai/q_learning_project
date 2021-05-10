@@ -22,7 +22,7 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 	$ roslaunch q_learning_project turtlebot3_intro_robo_manipulation.launch
 	$ roslaunch turtlebot3_gazebo turtlebot3_gazebo_rviz.launch
 	$ roslaunch turtlebot3_manipulation_moveit_config move_group.launch
-	$ rosrun q_learning_project perception.py
+	$ rosrun q_learning_project action.py
 
 
 <span style="color:red">**IMPORTANT:**</span> remember clicking the <span style="color:yellow">**PLAY**</span> button!	
