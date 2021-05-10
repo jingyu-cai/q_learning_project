@@ -37,14 +37,14 @@ path_prefix = os.path.dirname(__file__) + "/action_states/"
 Q_MATRIX_PATH = os.path.dirname(__file__) + "/q_matrix.csv"
 
 
-class RobotMovement(object):
+class RobotAction(object):
     def __init__(self):
 
         # Once everything is set up this will be set to true
         self.initialized = False
 
         # Initialize this node
-        rospy.init_node('robot_movement')
+        rospy.init_node('robot_action')
 
         # Set up publisher
         self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size = 10)
@@ -515,7 +515,7 @@ class RobotMovement(object):
             else:
                     
                 # Define k_p for proportional control            
-                k_p = 1.0 / 2000.0
+                k_p = 1.0 / 1500.0
 
                 # Slowly turn the head while going forwards, so that the 
                 #   color center would be at the center of the camera
@@ -552,7 +552,7 @@ class RobotMovement(object):
 
 if __name__ == "__main__":
     try:
-        node = RobotMovement()
+        node = RobotAction()
         node.run()
     except rospy.ROSInterruptException:
         pass
