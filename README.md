@@ -11,21 +11,21 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 
 #### Q Learning
 
-	$roscore
-	$roslaunch q_learning_project training.launch
-	$rosrun q_learning_project phantom_robot_movement.py
+	$ roscore
+	$ roslaunch q_learning_project training.launch
+	$ rosrun q_learning_project phantom_robot_movement.py
 
 
 #### Robot Perception & Movement
 
-    $roscore
-    $roslaunch q_learning_project turtlebot3_intro_robo_manipulation.launch
-    $roslaunch turtlebot3_manipulation_moveit_config move_group.launch
-    $rosrun q_learning_project perception.py
+	$ roscore
+	$ roslaunch q_learning_project turtlebot3_intro_robo_manipulation.launch
+	$ roslaunch turtlebot3_gazebo turtlebot3_gazebo_rviz.launch
+	$ roslaunch turtlebot3_manipulation_moveit_config move_group.launch
+	$ rosrun q_learning_project perception.py
 
 
 <span style="color:red">**IMPORTANT:**</span> remember clicking the <span style="color:yellow">**PLAY**</span> button!	
-
 
 ### Component implementation and testing
 - **Q-learning algorithm**
@@ -72,3 +72,17 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 - Q-learning: May 10th
 - The rest of the time would be used for tuning and optimization.
 - DDL: Wednesday, May 12 11:00am CST
+
+## Writeup
+
+### Objectives description
+For this project, the objective is to first train a Q-matrix based on the Q-learning algorithm. Then, with the trained Q-matrix that specifices what action to take in a particular state to maximize the received reward, we need to make the robot perform a sequence of perceptions and movements to place each dumbbell in front of the correct block.
+
+### High-level description
+To determine which dumbbell belongs in front of which block, we used reinforcement learning by employing the Q-learning algorithm. The robot can be in different states (defined by where the dumbbells are) and different actions that it can take in each state (defined by the movement of a dumbbell to a block), and each action in a given state results in a reward. Specifically, we used the pre-defined `actions.txt`, `states.txt`, and `action_matrix.txt` to define a set of functions that finds the best action to take in a given state that maximizes the received reward, resulting in a Q-matrix. Once the Q-matrix is trained, we will be able to choose an action from each state and apply that onto the movement of the robot in Gazebo.
+
+### Q-learning algorithm description
+- **Selecting and executing actions for the robot (or phantom robot) to take**: For this component, we first initialized an empty Q-matrix populated with 0s and published that to the `QMatrix()` message, and set the current state to 0. Then, for each given state, we chose a random and valid action for the robot to take (move a dumbbell to a block) from the pre-defined files that elicit possible actions and states in the `action_states` folder, and published that action as a `RobotMoveDBToBlock()` message to the robot/phantom robot. Lastly, after processing the received reward, we would jump into the next state and repeat the above process. The relevant code are located in `q_learning.py`.
+	- `init()`: In here, we set up the necessary variables for selecting and executing actions for the robot/phantom robot, including the publishers for `QMatrix()` and `RobotMoveDBToBlock()`, the action matrix, actions, and states from the pre-defined files, and variables to keep track of the robot's state. We also initialized the Q-matrix and published it, and chose a random action to begin.
+	- `initialize_q_matrix()`: In here, we assigned every cell within the Q-matrix with a value of 0 to start.
+	- `select_random_action()`: In here, we identified the valid actions to take given a current state from `self.action_matrix`, and randomly selected one of those actions using numpy's `choice()` function. Then, after updating what the next state would be for the selected action, we published the dumbbell color and block number via a `RobotMoveDBToBlock()` message for the robot/phantom robot to execute.
