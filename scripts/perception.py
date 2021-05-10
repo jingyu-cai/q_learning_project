@@ -9,7 +9,10 @@ import math
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import Odometry
 import moveit_commander
+
+import utils
 
 # Define colors for the dumbbells and block number
 COLOR_BOUNDS = {'red': {'lb': np.array([0, 50, 0]),
@@ -22,6 +25,15 @@ COLOR_BOUNDS = {'red': {'lb': np.array([0, 50, 0]),
                             'ub': np.array([180, 255, 50])}}
 COLORS = ['red', 'green', 'blue']
 
+# Sometimes the detector may recognize numbers as other numbers or 
+#   characters, so we are grouping them into the same category
+ONES = ["1", "l", "i"]
+TWOS = ["2"]
+THREES = ["3", "5", "8", "s", "b", "81"]
+
+RIGHT, CENTER, LEFT, NULL = 0, 1, 2, -1
+
+
 # Define robot statuses to keep track of its actions
 GO_TO_DB = "go_to_dumbbell"
 REACHED_DB = "reached_db"
@@ -30,12 +42,19 @@ MOVING_TO_BLOCK = "moving_to_block"
 REACHED_BLOCK = "reached_block"
 BLOCK_DETECTED  = "block_detected"
 
-print(f"os cwd: {os.getcwd()}")
 # Path of directory on where this file is located
 path_prefix = os.path.dirname(__file__) + "/action_states/"
 
 # Path of where the trained Q-matrix csv file is located
 Q_MATRIX_PATH = "q_matrix.csv"
+
+def get_sign_num_dict():
+    """"Convert the ONES, TWOS, THREES into a dictionary"""
+    res = {}
+    for idx, lst in enumerate([ONES, TWOS, THREES]):
+        for sign in lst:
+            res[sign] = idx + 1
+    return res
 
 
 class RobotPerception(object):
@@ -53,6 +72,7 @@ class RobotPerception(object):
         # Set up subscribers
         self.image_sub = rospy.Subscriber('camera/rgb/image_raw', Image, self.image_callback)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
+        self.odem_sub = rospy.Subscriber('/odom', Odometry, self.odem_callback)
 
         # Fetch pre-built action matrix. This is a 2d numpy array where row indexes
         # correspond to the starting state and column indexes are the next states.
@@ -77,6 +97,8 @@ class RobotPerception(object):
         # Set up a list to store the trained Q-matrix
         self.q_matrix = []
         self.load_q_matrix()
+
+        self.current_pos = []
 
         # Set up a list of tuples to store the action sequence
         self.action_sequence = []
@@ -118,6 +140,18 @@ class RobotPerception(object):
         # First, robot's status set to GO_TO_DB
         self.robot_status = PICKED_UP_DB
 
+        # Get the sign_to_num block dict
+        self.sign_num_dict = get_sign_num_dict()
+        print(f"sign_num_dict = {self.sign_num_dict}")
+
+        self.prediction_group = []
+
+        # Set the initial direction to blocks
+        # Here we set it to RIGHT for testing. Should be set to NULL.
+        self.face_to_block = RIGHT
+
+        self.coordinates = []
+
         # Now everything is initialized
         self.initialized = True
 
@@ -127,6 +161,64 @@ class RobotPerception(object):
 
         # Store the file into self.q_matrix
         self.q_matrix = np.loadtxt(Q_MATRIX_PATH, delimiter = ',')
+
+    def convert_rec_to_center(self, rec_cors):
+        """ Turn the coordinated of the rectangle to a CENTER in the image"""
+        num_cor = len(rec_cors)
+        cx = sum([rec_cors[i][0] for i in range(num_cor)]) / num_cor
+        cy = sum([rec_cors[i][1] for i in range(num_cor)]) / num_cor
+        return cx, cy
+
+    def go_to_a_center(self, cx, cy, w, target = "BLOCK", end_status = REACHED_BLOCK):
+        # Dumbbell's distance to the center of the camera
+        if target == "BLOCK":
+            goal_dist = self.__goal_dist_in_front_block
+        elif target == "DB":
+            goal_dist = self.__goal_dist_in_front__db
+        else:
+            return "You can only choose block / db to be the target"
+
+        print(f'---- Go to a center : cx = {cx}, w/2 = {w/2}, w = {w}----')
+        err = w/2 - cx
+
+
+        print(f"abs(err) / w : {abs(err) / w}")
+
+        # If the color center is at the front
+        if abs(err) / w < 0.05:
+            
+            min_dist = min(self.__scan_data[-10:] + self.__scan_data[:10])
+
+            print(f"min_dist: {min_dist}")
+
+            if min_dist <= goal_dist:
+
+                # Stop the robot
+                self.pub_vel(0,0)
+
+                # Sleep 1s to make sure the robot has stopped
+                rospy.sleep(1)
+
+                # Change status to reached dumbbell
+                self.robot_status = end_status
+                print(f"---reached target----")
+
+            else:
+
+                # Rush STRAIGHT toward the dumbbell
+                ang_v, lin_v = self.set_vel(0, min_dist)
+                self.pub_vel(ang_v, lin_v)
+
+        # If the color center is not right at the front yet
+        else:
+            
+            # Define k_p for proportional control            
+            k_p = 1.0 / 20000.0
+
+            # Slowly turn the head, so that the color center 
+            #   would be at the center of the camera
+            self.pub_vel(k_p * err, 0)
+            print(f"---turning to target----")
 
 
     def get_action_sequence(self):
@@ -373,28 +465,30 @@ class RobotPerception(object):
             ang_v, lin_v = self.set_vel()
             self.pub_vel(ang_v, lin_v)
 
-
-    def is_correct_num(self, id: int, prediction_group):
-        """ Check if the detected number is the block ID we are looking for """
-        if len(prediction_group) == 0:
+    def is_correct_num_sing(self, id, prediction_group_entry):
+        """Check if an entry of the prediction_group matches the desired block id"""
+        print(f"prediction_group_entry: {prediction_group_entry}")
+        sign, coordinates = prediction_group_entry
+        if sign in self.sign_num_dict and self.sign_num_dict[sign] == id:
+            return True
+        else:
             return False
 
-        # Sometimes the detector may recognize numbers as other numbers or 
-        #   characters, so we are grouping them into the same category
-        ones = ["1", "l", "i"]
-        twos = ["2"]
-        threes = ["3", "5", "8", "s", "b", "81"]
+    def is_correct_num(self, id: int, prediction_group):
+        """ Check if the FIRST detected number is the block ID we are looking for """
+        if len(prediction_group) == 0:
+            return False
 
         detected_num = 0
 
         # We always grab the first image in the list for detection, the robot
         #   turning movement will ensure that this will always be the next block
         #   it sees on the left
-        if prediction_group[0][0] in ones:
+        if prediction_group[0][0] in ONES:
             detected_num = 1
-        elif prediction_group[0][0] in twos:
+        elif prediction_group[0][0] in TWOS:
             detected_num = 2
-        elif prediction_group[0][0] in threes:
+        elif prediction_group[0][0] in THREES:
             detected_num = 3
 
         if detected_num == id:
@@ -426,20 +520,23 @@ class RobotPerception(object):
         mask = cv2.inRange(hsv, lb, ub)
         M = cv2.moments(mask)
 
+        
+
         # If the robot has picked up dumbbell but hasn't detected the desired block yet
         if self.robot_status == PICKED_UP_DB:
             
             # If there are any pixels found for the desired color
+            
             if M['m00'] > 0:
                 
                 # Stop to look at the block
                 self.pub_vel(0, 0)
 
                 # Call the recognizer on the image
-                prediction_group = self.pipeline.recognize([self.image])[0]
+                self.prediction_group = self.pipeline.recognize([self.image])[0]
 
                 # If the recognizer cannot recognize the image, keep turning
-                if len(prediction_group) == 0:
+                if len(self.prediction_group) == 0:
 
                     # Publish a small angular velocity so the robot doesn't overshoot
                     self.pub_vel(0.1, 0)
@@ -449,10 +546,21 @@ class RobotPerception(object):
                 #   one is the correct one
                 else:
                     
-                    print("Successfully got: " + str(prediction_group[0][0]))
+                    print(f"prediction_group: {self.prediction_group}")
+                    print("Successfully got: " + str(self.prediction_group[0][0]))
 
                     # Make sure we have the correct num
-                    if self.is_correct_num(id, prediction_group):
+                    if any(self.is_correct_num_sing(id, prediction_entry) for prediction_entry in self.prediction_group):
+
+                        if all(self.is_correct_num_sing(id, prediction_entry) for prediction_entry in self.prediction_group) and len(self.prediction_group) > 1:
+                            print(f"ALL FLAG, self.face_to_block = {self.face_to_block}")
+
+                            if self.face_to_block == RIGHT:
+                                print(f"self.prediction_group[1][1]: {self.prediction_group[1][1]}")
+                                self.coordinates = self.prediction_group[1][1]
+                            elif self.face_to_block in [CENTER, LEFT]:
+                                print(f"self.prediction_group[0][1]: {self.prediction_group[0][1]}")
+                                self.coordinates = self.prediction_group[0][1]
 
                         # Set robot status to move to block
                         self.robot_status = MOVING_TO_BLOCK
@@ -463,8 +571,13 @@ class RobotPerception(object):
                         # We will publish a specific degree so that the robot always
                         #   only sees the next block on its left, so we always grab
                         #   the first image in the list for detection
-                        self.pub_vel(math.radians(10), 0)
+                        
+                        self.pub_vel(math.radians(9.5), 0)
                         rospy.sleep(6)
+                        self.pub_vel(0, 0)
+                        self.face_to_block += 1
+                        rospy.sleep(1)
+                        print(f"------ after +1, self.face_to_block = {self.face_to_block}")
 
             # If we cannot see the pixel of the desired color
             else:
@@ -474,64 +587,87 @@ class RobotPerception(object):
 
         # If the robot has found the desired block, then move to it
         elif self.robot_status == MOVING_TO_BLOCK:
-
-            # TODO: This needs to be revised??? 
-            # I only checked when robot moves to block number 2 and it works, not sure about 1 and 3
-
-            # Get the shape of the image to compute its center
             h, w, d = self.image.shape
-
-            cx = int(M['m10']/M['m00'])
-            cy = int(M['m01']/M['m00'])
-
-            # Dumbbell's distance to the center of the camera
-            err = w/2 - cx
-
-            print(f"abs(err) / w : {abs(err) / w}")
-
-            # If the color center is at the front
-            if abs(err) / w < 0.05:
                 
-                min_dist = min(self.__scan_data[-10:] + self.__scan_data[:10])
+            assert len(self.coordinates) > 0
+            cx, cy = self.convert_rec_to_center(self.coordinates)
 
-                print(f"min_dist: {min_dist}")
+            self.go_to_a_center(w, cx, cy)
 
-                if min_dist <= self.__goal_dist_in_front_block:
+            self.face_to_block = NULL
 
-                    # Stop the robot
-                    self.pub_vel(0,0)
-
-                    # Sleep 1s to make sure the robot has stopped
-                    rospy.sleep(1)
-
-                    # Change status to reached block
-                    self.robot_status = REACHED_BLOCK
-                    print(f"---reached block of ID {id}----")
-
-                    # Drop the dumbbell
-                    self.drop_dumbbell()
-
-                else:
-
-                    # Rush STRAIGHT toward the block
-                    ang_v, lin_v = self.set_vel(0, min_dist)
-                    self.pub_vel(ang_v, lin_v)
-
-            # If the color center is not right at the front yet
-            else:
                 
-                # Define k_p for proportional control            
-                k_p = 1.0 / 1000.0
 
-                # Slowly turn the head, so that the color center 
-                #   would be at the center of the camera
-                self.pub_vel(k_p * err, 0)
-                print(f"---turning to block of ID {id}----")
+            # else:
+            #     # TODO: This needs to be revised??? 
+            #     # I only checked when robot moves to block number 2 and it works, not sure about 1 and 3
+
+            #     # Get the shape of the image to compute its center
+                
+
+            #     cx = int(M['m10']/M['m00'])
+            #     cy = int(M['m01']/M['m00'])
+
+            #     # Dumbbell's distance to the center of the camera
+            #     err = w/2 - cx
+
+            #     print(f"abs(err) / w : {abs(err) / w}")
+
+            #     # If the color center is at the front
+            #     if abs(err) / w < 0.05:
+                    
+            #         min_dist = min(self.__scan_data[-10:] + self.__scan_data[:10])
+
+            #         print(f"min_dist: {min_dist}")
+
+            #         if min_dist <= self.__goal_dist_in_front_block:
+
+            #             # Stop the robot
+            #             self.pub_vel(0,0)
+
+            #             # Sleep 1s to make sure the robot has stopped
+            #             rospy.sleep(1)
+
+            #             # Change status to reached block
+            #             self.robot_status = REACHED_BLOCK
+            #             print(f"---reached block of ID {id}----")
+
+            #             # Drop the dumbbell
+            #             self.drop_dumbbell()
+
+            #         else:
+
+            #             # Rush STRAIGHT toward the block
+            #             ang_v, lin_v = self.set_vel(0, min_dist)
+            #             self.pub_vel(ang_v, lin_v)
+
+            #     # If the color center is not right at the front yet
+            #     else:
+                    
+            #         # Define k_p for proportional control            
+            #         k_p = 1.0 / 1000.0
+
+            #         # Slowly turn the head, so that the color center 
+            #         #   would be at the center of the camera
+            #         self.pub_vel(k_p * err, 0)
+            #         print(f"---turning to block of ID {id}----")
 
         # Do nothing if the robot isn't in any of the two statuses
         else:
             return
+
+    def return_to_origin_and_turn_to_right(self):
+        # TODO
+        if len(self.current_pos) == 0:
+            return 
         
+    
+    def odem_callback(self, msg):
+        self.current_pos = msg.pose.pose
+        # print("===============")
+        # print(f"self.current_pos: {self.current_pos}")
+        # print(f"get yaw: {utils.get_yaw_from_pose(self.current_pos)}")
+        # print("===============")
 
     def run(self):
         """ Run the node """
@@ -545,7 +681,7 @@ class RobotPerception(object):
             if self.robot_status == GO_TO_DB:
                 self.move_to_dumbbell('red')
             elif self.robot_status == PICKED_UP_DB or self.robot_status == MOVING_TO_BLOCK:
-                self.move_to_block(2)
+                self.move_to_block(1)
             
             r.sleep()
 
