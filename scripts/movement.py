@@ -37,14 +37,14 @@ path_prefix = os.path.dirname(__file__) + "/action_states/"
 Q_MATRIX_PATH = "q_matrix.csv"
 
 
-class RobotPerception(object):
+class RobotMovement(object):
     def __init__(self):
 
         # Once everything is set up this will be set to true
         self.initialized = False
 
         # Initialize this node
-        rospy.init_node('robot_perception')
+        rospy.init_node('robot_movement')
 
         # Set up publisher
         self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size = 10)
@@ -77,8 +77,12 @@ class RobotPerception(object):
         self.q_matrix = []
         self.load_q_matrix()
 
-        # Set up a list of tuples to store the action sequence
+        # Set up a list of tuples to store the action sequence and populate it
         self.action_sequence = []
+        self.get_action_sequence()
+
+        # Initialize number to keep track which step we are on
+        self.action_step = 0
 
         # Create an empty Twist msg
         self.twist = Twist()
@@ -268,6 +272,9 @@ class RobotPerception(object):
 
         # After the robot dropped the dumbbells, it's time to go back to the dumbbells
         self.robot_status = GO_TO_DB
+
+        # We also increase the number of action steps by 1
+        self.action_step += 1
 
 
     def image_callback(self, data):
@@ -546,20 +553,26 @@ class RobotPerception(object):
         # Set a rate to maintain the frequency of execution
         r = rospy.Rate(5)
 
-        # Run the program based on different statuses
-        # TODO: This part needs to be automated
+        # Run the program based on different statuses and number of action steps
         while not rospy.is_shutdown():
-            if self.robot_status == GO_TO_DB or self.robot_status == REACHED_DB:
-                self.move_to_dumbbell('green')
-            elif self.robot_status == PICKED_UP_DB or self.robot_status == MOVING_TO_BLOCK or self.robot_status == REACHED_BLOCK:
-                self.move_to_block(3)
+
+            # If we haven't exhausted the action sequence list yet, then we keep taking actions
+            if self.action_step < 3:
+
+                # If the robot is in these two statuses, then it needs to execute move_to_dumbbell
+                if self.robot_status == GO_TO_DB or self.robot_status == REACHED_DB:
+                    self.move_to_dumbbell(self.action_sequence[self.action_step][0])
+
+                # If the robot is in these three statuses, then it needs to execute move_to_block
+                elif self.robot_status == PICKED_UP_DB or self.robot_status == MOVING_TO_BLOCK or self.robot_status == REACHED_BLOCK:
+                    self.move_to_block(self.action_sequence[self.action_step][1])
             
             r.sleep()
 
 
 if __name__ == "__main__":
     try:
-        node = RobotPerception()
+        node = RobotMovement()
         node.run()
     except rospy.ROSInterruptException:
         pass
