@@ -60,7 +60,7 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 	$ roslaunch q_learning_project training.launch
 #### Robot Perception & Movement
 	$ roscore
-$ roslaunch q_learning_project action.launch
+	$ roslaunch q_learning_project action.launch
 ## Writeup
 
 **Please see the code from the master branch!**
