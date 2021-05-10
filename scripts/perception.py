@@ -98,7 +98,7 @@ class RobotPerception(object):
         # Minimum distance in front of dumbbell/block
         # ORIGINAL = 0.21
         self.__goal_dist_in_front__db = 0.22
-        self.__goal_dist_in_front_block = 0.5
+        self.__goal_dist_in_front_block = 0.65
 
         # For Sensory-Motor Control in controling the speed
         self.__prop = 0.15 
@@ -115,7 +115,7 @@ class RobotPerception(object):
         self.initialize_move_group()
 
         # First, robot's status set to GO_TO_DB
-        self.robot_status = PICKED_UP_DB
+        self.robot_status = GO_TO_DB
 
         # Now everything is initialized
         self.initialized = True
@@ -253,12 +253,18 @@ class RobotPerception(object):
             return
 
         # Set arm and gripper joint goals and move them
-        arm_joint_goal = [0.0, 0.45, 0.5, -0.9]
+        arm_joint_goal = [0.0, 0.65, 0.15, -0.9]
         gripper_joint_goal = [0.01, 0.01]
         self.move_group_arm.go(arm_joint_goal, wait=True)
         self.move_group_gripper.go(gripper_joint_goal, wait=True)
         self.move_group_arm.stop()
         self.move_group_gripper.stop()
+
+        # Step back
+        print("----- stepping back!----")
+        self.pub_vel(0, -0.5)
+        rospy.sleep(0.8)
+        self.pub_vel(0, 0)
 
         # After the robot dropped the dumbbells, it's time to go back to the dumbbells
         self.robot_status = GO_TO_DB
@@ -453,6 +459,11 @@ class RobotPerception(object):
                         # Set robot status to move to block
                         self.robot_status = MOVING_TO_BLOCK
 
+                        # Move forwards
+                        self.pub_vel(0, 0.2)
+                        rospy.sleep(4)
+                        self.pub_vel(0, 0)
+
                     # Otherwise, we keep turning
                     else:
 
@@ -538,10 +549,10 @@ class RobotPerception(object):
         # Run the program based on different statuses
         # TODO: This part needs to be automated
         while not rospy.is_shutdown():
-            if self.robot_status == GO_TO_DB:
-                self.move_to_dumbbell('red')
-            elif self.robot_status == PICKED_UP_DB or self.robot_status == MOVING_TO_BLOCK:
-                self.move_to_block(2)
+            if self.robot_status == GO_TO_DB or self.robot_status == REACHED_DB:
+                self.move_to_dumbbell('green')
+            elif self.robot_status == PICKED_UP_DB or self.robot_status == MOVING_TO_BLOCK or self.robot_status == REACHED_BLOCK:
+                self.move_to_block(3)
             
             r.sleep()
 
