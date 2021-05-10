@@ -34,7 +34,7 @@ print(f"os cwd: {os.getcwd()}")
 path_prefix = os.path.dirname(__file__) + "/action_states/"
 
 # Path of where the trained Q-matrix csv file is located
-Q_MATRIX_PATH = os.path.dirname(__file__) + "/q_matrix.csv"
+q_matrix_path = os.path.dirname(__file__) + "/q_matrix.csv"
 
 
 class RobotAction(object):
@@ -129,7 +129,7 @@ class RobotAction(object):
         """ Load the trained Q-matrix csv file """
 
         # Store the file into self.q_matrix
-        self.q_matrix = np.loadtxt(Q_MATRIX_PATH, delimiter = ',')
+        self.q_matrix = np.loadtxt(q_matrix_path, delimiter = ',')
 
 
     def get_action_sequence(self):
