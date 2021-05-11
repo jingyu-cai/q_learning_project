@@ -19,7 +19,7 @@ class AnalyzeScan(object):
         self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size = 10)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
     
-        self.scan_data = []
+        self.__scan_data = []
 
         self.scan_max = None
 
@@ -39,11 +39,11 @@ class AnalyzeScan(object):
     def scan_callback(self, data):
         if not self.initialized:
             return
-        self.scan_data = data.ranges
+        self.__scan_data = data.ranges
         if not self.scan_max:
             self.scan_max = data.range_max
         
-        # print(self.scan_data[-90:] + self.scan_data[:90])
+        # print(self.__scan_data[-90:] + self.__scan_data[:90])
         # print("============")
         self.process_scan()
         #print(f"self.inf_bounds = {self.inf_bounds}")
@@ -55,15 +55,15 @@ class AnalyzeScan(object):
 
         if self.initialized == False:
             return False
-        if len(self.scan_data) == 0:
-            print("Have not got the scan_data yet")
+        if len(self.__scan_data) == 0:
+            print("Have not got the __scan_data yet")
             return False
         
         
         cnt = 0
         seen = False
         for idx in range(-90, 90):
-            if self.scan_data[idx] < self.scan_max:
+            if self.__scan_data[idx] < self.scan_max:
                 if seen == True:
                     self.inf_bounds[cnt][1] = idx
                     seen = False
