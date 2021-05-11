@@ -249,12 +249,10 @@ class RobotAction(object):
             print("Have not got the __scan_data yet")
             return False
         
-        # Make the robot facing to the blocks
-        utils.turn_a_pi(self.cmd_vel_pub)
         
         cnt = 0
         seen = False
-        for idx in range(-90, 90):
+        for idx in range(90, 270):
             if self.__scan_data[idx] < self.scan_max:
                 if seen == True:
                     self.inf_bounds[cnt][1] = idx
@@ -274,7 +272,7 @@ class RobotAction(object):
         print(f"self.large_angle = {self.large_angle}")
 
         # Make the robot turn back to dbs
-        util.turn_a_pi(self.cmd_vel_pub)
+        
         self.robot_status = GO_TO_DB
         
 
@@ -622,6 +620,10 @@ class RobotAction(object):
 
         # Run the program based on different statuses and number of action steps
         while not rospy.is_shutdown():
+
+            if self.robot_status == MEASURE_ANGLE:
+                self.process_scan
+
 
             # If we haven't exhausted the action sequence list yet, then we keep taking actions
             if self.action_step < 3:

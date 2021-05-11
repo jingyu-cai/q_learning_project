@@ -50,11 +50,11 @@ def compute_large_angle(block_bounds):
     for i in range(len(block_bounds)):
         lb, ub = block_bounds[i]
         if i == 0:
-            midpoints[i] = lb - 14 # Add some bias
+            midpoints[i] = lb - 12 # Add some bias
         elif i == 1:
-            midpoints[i] = (3 * lb + 3 * ub) / 6
+            midpoints[i] = (lb + ub) / 2
         elif i == 2:
-            midpoints[i] = ub + 14 # Add some bias
+            midpoints[i] = ub + 12 # Add some bias
         
     
     diffs = [midpoints[1] - midpoints[0], midpoints[2] - midpoints[1]]
@@ -83,7 +83,6 @@ class BackToOrigin(object):
         self.cur_yaw = get_yaw_from_pose(current_pos)
         self.theta = math.atan(cur_x / cur_y)
         
-
 
         self.rotate_to_origin()
         self.rush_to_origin()
