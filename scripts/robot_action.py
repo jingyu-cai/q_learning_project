@@ -217,12 +217,12 @@ class RobotAction(object):
 
             if i == 0:
                 # Add some bias
-                midpoints[i] = lb - 9.5
+                midpoints[i] = lb - 9
             elif i == 1:
                 midpoints[i] = (lb + ub) / 2
             elif i == 2:
                 # Add some bias
-                midpoints[i] = ub + 9.5
+                midpoints[i] = ub + 9
         
         diffs = [midpoints[1] - midpoints[0], midpoints[2] - midpoints[1]]
         
@@ -455,7 +455,7 @@ class RobotAction(object):
         left_most_block = 0
         center_x = sum([coord[0] for coord in prediction_group[left_most_block][1]]) / 4
 
-        for i in len(prediction_group):
+        for i in range(len(prediction_group)):
 
             # Compute the center of the x positions
             temp_center_x = sum([coord[0] for coord in prediction_group[i][1]]) / 4
