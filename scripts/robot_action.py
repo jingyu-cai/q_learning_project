@@ -25,7 +25,6 @@ COLOR_BOUNDS = {'red': {'lb': np.array([0, 50, 0]),
 COLORS = ['red', 'green', 'blue']
 
 # Define robot statuses to keep track of its actions
-
 MEASURE_ANGLE = "measure_angle"
 GO_TO_DB = "go_to_dumbbell"
 REACHED_DB = "reached_db"
@@ -42,6 +41,8 @@ q_matrix_path = os.path.dirname(__file__) + "/q_matrix.csv"
 
 
 class RobotAction(object):
+
+
     def __init__(self):
 
         # Once everything is set up this will be set to true
@@ -113,9 +114,6 @@ class RobotAction(object):
 
         # Initialize the large_angle
         self.large_angle = -1
-
-        # Make sure the robot has turned to the right block
-        self.turn_to_three = False
 
         # Minimum distance in front of dumbbell/block
         self.__goal_dist_in_front__db = 0.22
@@ -208,8 +206,8 @@ class RobotAction(object):
         self.cmd_vel_pub.publish(self.twist)
 
 
-    def compute_large_angle(block_bounds):
-    """ Compute the large angle between blocks for turning """
+    def compute_large_angle(self, block_bounds):
+        """ Compute the large angle between blocks for turning """
 
         midpoints = [0, 0, 0]
 
@@ -241,14 +239,15 @@ class RobotAction(object):
             return
 
         if not (self.initialized):
-            return False
+            return
 
         if len(self.__scan_data) == 0:
             print("Have not got the __scan_data yet")
-            return False
+            return
         
         cnt = 0
         seen = False
+
         for idx in range(90, 270):
 
             if self.__scan_data[idx] < self.scan_max:
@@ -270,7 +269,6 @@ class RobotAction(object):
         print(f"self.large_angle = {self.large_angle}")
 
         # Make the robot turn back to dbs
-        
         self.robot_status = GO_TO_DB
 
 
@@ -623,6 +621,8 @@ class RobotAction(object):
 
 
 if __name__ == "__main__":
+
+    # Declare a node and run it
     try:
         node = RobotAction()
         node.run()

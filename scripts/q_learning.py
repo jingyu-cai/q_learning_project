@@ -15,18 +15,26 @@ print_header = "=" * 10
 
 
 def convert_q_matrix_to_list(qmatrix):
+    """ Helper function to convert Q-matrix to list """
+
     res = []
+
     for qrow in qmatrix:
         res.append(qrow.q_matrix_row)
+
     return res
 
 
 def print_state(states):
+    """ Helper function to print states """
+
     colors = ['red', 'green', 'blue']
     blocks = states
     output = ""
+
     for c, b in zip(colors, blocks):
         output += f"{c} -> {b} ;"
+
     print(output)
 
 
@@ -244,5 +252,7 @@ class QLearning(object):
 
 
 if __name__ == "__main__":
+
+    # Declare a node and run it
     node = QLearning()
     node.run()
