@@ -32,7 +32,6 @@ PICKED_UP_DB = "picked_up_dumbbell"
 MOVING_TO_BLOCK = "moving_to_block"
 REACHED_BLOCK = "reached_block"
 
-print(f"os cwd: {os.getcwd()}")
 # Path of directory on where this file is located
 path_prefix = os.path.dirname(__file__) + "/action_states/"
 
@@ -83,10 +82,11 @@ class RobotAction(object):
         self.load_q_matrix()
 
         # Set up a list of tuples to store the action sequence and populate it
+        #   using the converged Q-matrix
         self.action_sequence = []
         self.get_action_sequence()
 
-        # Initialize number to keep track which step we are on
+        # Initialize number to keep track which action step we are on
         self.action_step = 0
 
         # Create an empty Twist msg
@@ -112,14 +112,14 @@ class RobotAction(object):
         self.inf_bounds[-1][1] = 90
         self.block_bounds = [[0, 0] for _ in range(3)]
 
-        # Initialize the large_angle
+        # Initialize the large_angle to be used in turning
         self.large_angle = -1
 
-        # Minimum distance in front of dumbbell/block
+        # Minimum distance in front of dumbbell and block
         self.__goal_dist_in_front__db = 0.22
         self.__goal_dist_in_front_block = 0.55
 
-        # For Sensory-Motor Control in controling the speed
+        # For sensory-motor Ccntrol in controlling the speed
         self.__prop = 0.15 
 
         # The interface to the group of joints making up the turtlebot3
@@ -130,10 +130,11 @@ class RobotAction(object):
         #   openmanipulator gripper
         self.move_group_gripper = moveit_commander.MoveGroupCommander("gripper")
 
-        # Initialize starting robot arm and gripper position
+        # Initialize starting robot arm and gripper positions
         self.initialize_move_group()
 
-        # First, robot's status set to MEASURE_ANGLE
+        # First, robot's status set to MEASURE_ANGLE to measure the angles
+        #   between the blocks
         self.robot_status = MEASURE_ANGLE
 
         # Now everything is initialized
@@ -157,7 +158,8 @@ class RobotAction(object):
         # Loop through 3 times to get the action sequence
         for i in range(3):
 
-            # Get row in matrix and select the best action to take
+            # Get row in matrix and select the best action to take with the
+            #   maximum Q-value
             q_matrix_row = self.q_matrix[curr_state]
             selected_action = np.where(q_matrix_row == max(q_matrix_row))[0][0]
 
@@ -166,7 +168,7 @@ class RobotAction(object):
             block = self.actions[selected_action]["block"]
             self.action_sequence.append((db, block))
 
-            # Update current state
+            # Update the current state
             curr_state = np.where(self.action_matrix[curr_state] == selected_action)[0][0]
                 
         print(self.action_sequence)
@@ -183,12 +185,12 @@ class RobotAction(object):
             ang_v = 0.15
             lin_v = 0.0
         
-        # Stop if the robot is in front of the dumbbell
+        # Stop if the robot is in front of the dumbbell/block
         elif diff_dist < self.__goal_dist_in_front__db:
-            print("=====I got you.=====")
+            print("=====Arrived!=====")
             ang_v, lin_v = 0.0, 0.0
         
-        # Go forwards if robot is still away from dumbbell
+        # Go forwards if robot is still away from dumbbell/block
         else:
             print("=====Rushing Ahead!=====")
             lin_v = self.__prop * diff_dist
@@ -198,7 +200,7 @@ class RobotAction(object):
         
 
     def pub_vel(self, ang_v=0.0, lin_v=0.0):
-        """ To publish a twist to the cmd_vel channel """
+        """ Publish a twist to the cmd_vel channel """
 
         # Set linear and angular velocities and publish
         self.twist.linear.x = lin_v
@@ -207,23 +209,31 @@ class RobotAction(object):
 
 
     def compute_large_angle(self, block_bounds):
-        """ Compute the large angle between blocks for turning """
+        """ Compute the large angle between blocks for turning, this would
+        allow the robot to turn from facing one block to facing the next one """
 
+        # Initialize three midpoints of the three blocks
         midpoints = [0, 0, 0]
 
+        # For each block bound, we compute its midpoint with some added bias
         for i in range(len(block_bounds)):
-
+            
+            # Lower and upper bound angles for the block
             lb, ub = block_bounds[i]
 
             if i == 0:
-                # Add some bias
+                # Add some bias for the rightmost block
                 midpoints[i] = lb - 9
+
             elif i == 1:
+                # Just take the midpoint is fine for the middle block
                 midpoints[i] = (lb + ub) / 2
+
             elif i == 2:
-                # Add some bias
+                # Add some bias for the leftmost block
                 midpoints[i] = ub + 9
         
+        # Subtracting each midpoint to approximate the angle for the robot to turn
         diffs = [midpoints[1] - midpoints[0], midpoints[2] - midpoints[1]]
         
         return math.radians(sum(diffs) / 2)  
@@ -232,15 +242,19 @@ class RobotAction(object):
     def process_scan(self):
         """ Process the scan data to get the large angle """
 
+        # Do nothing if the status is not measure_angle
         if self.robot_status != MEASURE_ANGLE:
             return
 
+        # Do nothing if the large_angle has already been set
         if self.large_angle != -1:
             return
 
-        if not (self.initialized):
+        # Do nothing if initialization is not complete
+        if not self.initialized:
             return
 
+        # Do nothing if no scan data is received
         if len(self.__scan_data) == 0:
             print("Have not got the __scan_data yet")
             return
@@ -248,27 +262,34 @@ class RobotAction(object):
         cnt = 0
         seen = False
 
+        # TODO: comment
         for idx in range(90, 270):
 
             if self.__scan_data[idx] < self.scan_max:
+
+                # TODO: comment
                 if seen == True:
                     self.inf_bounds[cnt][1] = idx
                     seen = False
                     cnt += 1
             else:
+
+                # TODO: comment
                 if not seen:
                     self.inf_bounds[cnt][0] = idx
                     seen = True       
 
+        # TODO: comment
         for i in range(3):
             self.block_bounds[i][0] = self.inf_bounds[i][1]
             self.block_bounds[i][1] = self.inf_bounds[i+1][0]
 
+        # TODO: comment
         print(f"self.block_bounds = {self.block_bounds}")  
         self.large_angle = self.compute_large_angle(self.block_bounds)
         print(f"self.large_angle = {self.large_angle}")
 
-        # Make the robot turn back to dbs
+        # Now that we know the large_angle, the robot can start the actions
         self.robot_status = GO_TO_DB
 
 
@@ -300,7 +321,7 @@ class RobotAction(object):
         self.move_group_arm.stop()
         self.move_group_gripper.stop()
 
-        # Step back
+        # Step back so the robot won't hit the dumbbell while rotating
         print("----- stepping back!----")
         self.pub_vel(0, -0.5)
         rospy.sleep(0.8)
@@ -325,7 +346,7 @@ class RobotAction(object):
         self.move_group_arm.stop()
         self.move_group_gripper.stop()
 
-        # Step back
+        # Step back so the robot won't hit the dumbbell while rotating
         print("----- stepping back!----")
         self.pub_vel(0, -0.5)
         rospy.sleep(0.8)
@@ -342,7 +363,7 @@ class RobotAction(object):
         """ Process the image from the robot's RGB camera """
 
         # Do nothing if initialization is not done
-        if (not self.initialized):
+        if not self.initialized:
             return
 
         # Take the ROS message with the image and turn it into a format cv2 can use
@@ -353,7 +374,7 @@ class RobotAction(object):
         """ Store scan data in self.__scan_data to be processed """
 
         # Do nothing if initialization is not done
-        if (not self.initialized):
+        if not self.initialized:
             return
 
         # Store the ranges data
@@ -392,7 +413,7 @@ class RobotAction(object):
         # If there are any pixels found for the desired color
         if M['m00'] > 0:
 
-            # Determine the center of the yellow pixels in the image
+            # Determine the center of the colored pixels in the image
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
 
@@ -408,6 +429,7 @@ class RobotAction(object):
 
                 print(f"min_dist: {min_dist}")
 
+                # If the robot is close to the dumbbell
                 if min_dist <= self.__goal_dist_in_front__db:
 
                     # Stop the robot
@@ -448,13 +470,17 @@ class RobotAction(object):
             self.pub_vel(ang_v, lin_v)
 
 
-    def is_correct_num(self, id: int, prediction_group):
-        """ Check if the detected number is the block ID we are looking for """
+    def leftmost_is_correct_id(self, id: int, prediction_group):
+        """ Check if the detected number on the leftmost block in the camera view
+        is the block ID we are looking for; the robot turning movement with 
+        self.large_angle will ensure that the robot will always face the next 
+        block on the left """
 
-        # Find the left-most image with the center of the x positions of the boxes
+        # Define variables to be used in the comparison step below
         left_most_block = 0
         center_x = sum([coord[0] for coord in prediction_group[left_most_block][1]]) / 4
-
+        
+        # Find the left-most image using the center of the x positions of the boxes
         for i in range(len(prediction_group)):
 
             # Compute the center of the x positions
@@ -475,9 +501,7 @@ class RobotAction(object):
 
         detected_num = 0
 
-        # We always grab the first image in the list for detection, the robot
-        #   turning movement will ensure that this will always be the next block
-        #   it sees on the left
+        # We grab the leftmost image in the list for detection and grouping
         if prediction_group[left_most_block][0] in ones:
             detected_num = 1
         elif prediction_group[left_most_block][0] in twos:
@@ -485,6 +509,7 @@ class RobotAction(object):
         elif prediction_group[left_most_block][0] in threes:
             detected_num = 3
 
+        # Return true if the detected number matches our desired ID
         if detected_num == id:
             return True
 
@@ -510,7 +535,7 @@ class RobotAction(object):
         # Get lower and upper bounds of the specified color
         lb, ub = COLOR_BOUNDS['black']['lb'], COLOR_BOUNDS['black']['ub']
         
-        # Mask and get moment of the color of the dumbbell
+        # Mask and get moment of the color of the block
         mask = cv2.inRange(hsv, lb, ub)
         M = cv2.moments(mask)
 
@@ -533,12 +558,12 @@ class RobotAction(object):
                     self.pub_vel(0.05, 0)
                     rospy.sleep(0.5)
                     
-                # If the recognizer has recognized an image, we check if the first 
-                #   one is the correct one
+                # If the recognizer has recognized an image, we check if the 
+                #   leftmost one is the correct one
                 else:
 
                     # Make sure we have the correct num for the leftmost block
-                    if self.is_correct_num(id, prediction_group):
+                    if self.leftmost_is_correct_id(id, prediction_group):
 
                         # Set robot status to move to block
                         self.robot_status = MOVING_TO_BLOCK
@@ -576,6 +601,7 @@ class RobotAction(object):
 
             print(f"min_dist: {min_dist}")
 
+            # If the robot is close to the block
             if min_dist <= self.__goal_dist_in_front_block:
 
                 # Stop the robot
@@ -615,7 +641,7 @@ class RobotAction(object):
         # Run the program based on different statuses and number of action steps
         while not rospy.is_shutdown():
             
-            # Processes the scan data first to measure the angles between the blocks
+            # Process the scan data first to measure the angles between the blocks
             if self.robot_status == MEASURE_ANGLE:
                 self.process_scan()
 

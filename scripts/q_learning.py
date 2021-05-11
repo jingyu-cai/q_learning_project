@@ -141,11 +141,10 @@ class QLearning(object):
         curr_state = self.curr_state
         actions_in_row = self.action_matrix[curr_state]
 
-        # Filter out the invalid actions from the row of actions, and if all
-        #   the actions are invalid, then do nothing
+        # Filter out the invalid actions from the row of actions
         filtered_actions_in_row = list(filter(lambda x: x != -1, actions_in_row))
 
-        # If there's no more actions to take: reset current state to state 0
+        # If there are no possible actions to take: reset current state to state 0
         while len(filtered_actions_in_row) == 0:
             print(print_header + "no action to take" + print_header)
             self.curr_state = 0
@@ -224,14 +223,13 @@ class QLearning(object):
         print(f"type of data[0]: {type(data[0])}")
         data = np.asarray(data)
 
-        np.savetxt("../catkin_ws/src/q_learning_project/scripts/q_matrix.csv", data, fmt='%5s', delimiter = ',')
+        np.savetxt(os.path.dirname(__file__) + "/q_matrix.csv", data, fmt='%5s', delimiter = ',')
 
     
     def reward_received(self, data):
         """ Process received reward after an action """
 
         # Update the Q-matrix
-
         self.update_q_matrix(data.reward)
 
         if self.is_converged():
