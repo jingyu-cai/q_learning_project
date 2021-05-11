@@ -1,1 +1,0 @@
-<img src="demo_q_oneround_10x.gif" width=800>
