@@ -90,7 +90,7 @@ class QLearning(object):
 
         # Initialize variables to define static status and keep track of how many 
         #   iterations have the Q-matrix remained static
-        self.epsilon = 0.01
+        self.epsilon = 1
         self.static_iter_threshold = 500
         self.static_tracker = 0
 
@@ -177,7 +177,7 @@ class QLearning(object):
 
         # Apply algorithm to update the q value for a state-action pair
         old_q_value = self.q_matrix.q_matrix[curr_state].q_matrix_row[curr_action]
-        new_q_value = old_q_value + alpha * (reward + gamma * max(self.q_matrix.q_matrix[next_state].q_matrix_row) - old_q_value)
+        new_q_value = old_q_value + int(alpha * (reward + gamma * max(self.q_matrix.q_matrix[next_state].q_matrix_row) - old_q_value))
         self.q_matrix.q_matrix[curr_state].q_matrix_row[curr_action] = new_q_value
 
         # Now, move the current state on to the next state

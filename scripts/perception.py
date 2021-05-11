@@ -6,14 +6,9 @@ import numpy as np
 import keras_ocr
 import math
 
-import utils
-from utils import BackToOrigin
-
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
-from nav_msgs.msg import Odometry
-
 import moveit_commander
 
 # Define colors for the dumbbells and block number
@@ -28,12 +23,9 @@ COLOR_BOUNDS = {'red': {'lb': np.array([0, 50, 0]),
 COLORS = ['red', 'green', 'blue']
 
 # Define robot statuses to keep track of its actions
-
-MEASURE_ANGLE = "measure_angle"
 GO_TO_DB = "go_to_dumbbell"
 REACHED_DB = "reached_db"
 PICKED_UP_DB = "picked_up_dumbbell"
-BACK_TO_ORIGIN = "back_to_origin"
 MOVING_TO_BLOCK = "moving_to_block"
 REACHED_BLOCK = "reached_block"
 
@@ -42,17 +34,17 @@ print(f"os cwd: {os.getcwd()}")
 path_prefix = os.path.dirname(__file__) + "/action_states/"
 
 # Path of where the trained Q-matrix csv file is located
-q_matrix_path = os.path.dirname(__file__) + "/q_matrix.csv"
+Q_MATRIX_PATH = "q_matrix.csv"
 
 
-class RobotAction(object):
+class RobotPerception(object):
     def __init__(self):
 
         # Once everything is set up this will be set to true
         self.initialized = False
 
         # Initialize this node
-        rospy.init_node('robot_action')
+        rospy.init_node('robot_perception')
 
         # Set up publisher
         self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size = 10)
@@ -60,8 +52,7 @@ class RobotAction(object):
         # Set up subscribers
         self.image_sub = rospy.Subscriber('camera/rgb/image_raw', Image, self.image_callback)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
-        self.odem_sub = rospy.Subscriber('/odom', Odometry, self.odem_callback)
-        
+
         # Fetch pre-built action matrix. This is a 2d numpy array where row indexes
         # correspond to the starting state and column indexes are the next states.
         #
@@ -86,12 +77,8 @@ class RobotAction(object):
         self.q_matrix = []
         self.load_q_matrix()
 
-        # Set up a list of tuples to store the action sequence and populate it
+        # Set up a list of tuples to store the action sequence
         self.action_sequence = []
-        self.get_action_sequence()
-
-        # Initialize number to keep track which step we are on
-        self.action_step = 0
 
         # Create an empty Twist msg
         self.twist = Twist()
@@ -108,23 +95,10 @@ class RobotAction(object):
         # Initialize array to hold and process scan data
         self.__scan_data = []
 
-        # The "inf" in the scan data
-        self.scan_max = None
-
-        # Initialize the ranges for blocks and void        
-        self.inf_bounds = [[0, 0] for _ in range(4)]
-        self.inf_bounds[-1][1] = 90
-        self.block_bounds = [[0, 0] for _ in range(3)]
-
-        # Initializr the large_angle
-        self.large_angle = -1
-
-        # Make sure the robot has turned to the right block
-        self.turn_to_three = False
-
         # Minimum distance in front of dumbbell/block
+        # ORIGINAL = 0.21
         self.__goal_dist_in_front__db = 0.22
-        self.__goal_dist_in_front_block = 0.55
+        self.__goal_dist_in_front_block = 0.5
 
         # For Sensory-Motor Control in controling the speed
         self.__prop = 0.15 
@@ -140,14 +114,8 @@ class RobotAction(object):
         # Initialize starting robot arm and gripper position
         self.initialize_move_group()
 
-        # Initialize the current pose of robot
-        self.current_pos = []
-
         # First, robot's status set to GO_TO_DB
-        self.robot_status = MEASURE_ANGLE
-
-        # Initialize the back-to-origin pipeline
-        self.back_to_origin = BackToOrigin(self.cmd_vel_pub)
+        self.robot_status = PICKED_UP_DB
 
         # Now everything is initialized
         self.initialized = True
@@ -157,32 +125,51 @@ class RobotAction(object):
         """ Load the trained Q-matrix csv file """
 
         # Store the file into self.q_matrix
-        self.q_matrix = np.loadtxt(q_matrix_path, delimiter = ',')
+        self.q_matrix = np.loadtxt(Q_MATRIX_PATH, delimiter = ',')
 
 
     def get_action_sequence(self):
         """ Get the sequence of actions for the robot to move the dumbbells
         to the correct blocks based on the trained Q-matrix """
+
+        # Do nothing if initialization is not done
+        if not self.initialized:
+            return
         
         # Start at the origin
         curr_state = 0
 
+        # Keep track of what dumbbells and blocks are taken
+        colors = ["red", "green", "blue"]
+        blocks = [1, 2, 3]
+
         # Loop through 3 times to get the action sequence
         for i in range(3):
 
-            # Get row in matrix and select the best action to take
-            q_matrix_row = self.q_matrix[curr_state]
-            selected_action = np.where(q_matrix_row == max(q_matrix_row))[0][0]
+            # We can rely on the Q-matrix for the first two actions
+            if i != 2:
 
-            # Store the dumbbell color and block number for the action as a tuple
-            db = self.actions[selected_action]["dumbbell"]
-            block = self.actions[selected_action]["block"]
-            self.action_sequence.append((db, block))
+                # Get row in matrix and select the best action to take
+                q_matrix_row = self.q_matrix[curr_state]
+                selected_action = np.where(q_matrix_row == max(q_matrix_row))[0][0]
 
-            # Update current state
-            curr_state = np.where(self.action_matrix[curr_state] == selected_action)[0][0]
+                # Store the dumbbell color and block number for the action as a tuple
+                db = self.actions[selected_action]["dumbbell"]
+                block = self.actions[selected_action]["block"]
+                self.action_sequence.append((db, block))
 
-                
+                # Update current state
+                curr_state = np.where(self.action_matrix[curr_state] == selected_action)[0][0]
+
+                # Remove the taken dumbbell and block
+                colors.remove(db)
+                blocks.remove(block)
+
+            # To avoid invalid actions from the Q-matrix, we eliminate the
+            #   first two actions, so the last action will be the third action
+            else:
+                self.action_sequence.append((colors[0], blocks[0]))
+
         print(self.action_sequence)
 
 
@@ -194,7 +181,7 @@ class RobotAction(object):
         # Keep turning if the robot cannot see anything
         if diff_dist == float("inf"):
             print("=====I can't see it! Turning turning=====")
-            ang_v = 0.15
+            ang_v = 0.05
             lin_v = 0.0
         
         # Stop if the robot is in front of the dumbbell
@@ -218,48 +205,6 @@ class RobotAction(object):
         self.twist.linear.x = lin_v
         self.twist.angular.z = ang_v
         self.cmd_vel_pub.publish(self.twist)
-
-
-    def process_scan(self):
-        # Process the scan data to get the large angle
-        if self.robot_status != MEASURE_ANGLE:
-            return
-
-        if self.large_angle != -1:
-            return
-
-        if self.initialized == False:
-            return False
-        if len(self.__scan_data) == 0:
-            print("Have not got the __scan_data yet")
-            return False
-        
-        
-        cnt = 0
-        seen = False
-        for idx in range(90, 270):
-            if self.__scan_data[idx] < self.scan_max:
-                if seen == True:
-                    self.inf_bounds[cnt][1] = idx
-                    seen = False
-                    cnt += 1
-            else:
-                if not seen:
-                    self.inf_bounds[cnt][0] = idx
-                    seen = True       
-
-        for i in range(3):
-            self.block_bounds[i][0] = self.inf_bounds[i][1]
-            self.block_bounds[i][1] = self.inf_bounds[i+1][0]
-
-        print(f"self.block_bounds = {self.block_bounds}")  
-        self.large_angle = utils.compute_large_angle(self.block_bounds)
-        print(f"self.large_angle = {self.large_angle}")
-
-        # Make the robot turn back to dbs
-        
-        self.robot_status = GO_TO_DB
-        
 
 
     def initialize_move_group(self):
@@ -296,16 +241,8 @@ class RobotAction(object):
         rospy.sleep(0.8)
         self.pub_vel(0, 0)
 
-        # Move the db back to the origin, and let it face to the right
-        #print(f" ==== self.current_pos = {self.current_pos} ====")
-        # self.back_to_origin.run(self.current_pos)
-
-
         # After the robot grapped the dumbbells, it's time to identify the blocks
         self.robot_status = PICKED_UP_DB
-
-        
-
 
 
     def drop_dumbbell(self):
@@ -316,24 +253,15 @@ class RobotAction(object):
             return
 
         # Set arm and gripper joint goals and move them
-        arm_joint_goal = [0.0, 0.65, 0.15, -0.9]
+        arm_joint_goal = [0.0, 0.45, 0.5, -0.9]
         gripper_joint_goal = [0.01, 0.01]
         self.move_group_arm.go(arm_joint_goal, wait=True)
         self.move_group_gripper.go(gripper_joint_goal, wait=True)
         self.move_group_arm.stop()
         self.move_group_gripper.stop()
 
-        # Step back
-        print("----- stepping back!----")
-        self.pub_vel(0, -0.5)
-        rospy.sleep(0.8)
-        self.pub_vel(0, 0)
-
         # After the robot dropped the dumbbells, it's time to go back to the dumbbells
         self.robot_status = GO_TO_DB
-
-        # We also increase the number of action steps by 1
-        self.action_step += 1
 
 
     def image_callback(self, data):
@@ -355,16 +283,8 @@ class RobotAction(object):
             return
 
         # Store the ranges data
+        print("***** Got new scan! *****")
         self.__scan_data = data.ranges
-        if not self.scan_max:
-            self.scan_max = data.range_max
-    
-    def odem_callback(self, msg):
-        if (not self.initialized):
-            return
-        
-        # Store current position
-        self.current_pos = msg.pose.pose
 
 
     def move_to_dumbbell(self, color: str):
@@ -518,7 +438,7 @@ class RobotAction(object):
                 if len(prediction_group) == 0:
 
                     # Publish a small angular velocity so the robot doesn't overshoot
-                    self.pub_vel(0.05, 0)
+                    self.pub_vel(0.1, 0)
                     rospy.sleep(0.5)
                     
                 # If the recognizer has recognized an image, we check if the first 
@@ -539,9 +459,8 @@ class RobotAction(object):
                         # We will publish a specific degree so that the robot always
                         #   only sees the next block on its left, so we always grab
                         #   the first image in the list for detection
-                        spin_speed = math.radians(9.5)
-                        self.pub_vel(spin_speed, 0)
-                        rospy.sleep(self.large_angle / spin_speed)
+                        self.pub_vel(math.radians(10), 0)
+                        rospy.sleep(6)
 
             # If we cannot see the pixel of the desired color
             else:
@@ -552,6 +471,7 @@ class RobotAction(object):
         # If the robot has found the desired block, then move to it
         elif self.robot_status == MOVING_TO_BLOCK:
 
+            # TODO: This needs to be revised??? 
             # I only checked when robot moves to block number 2 and it works, not sure about 1 and 3
 
             # Get the shape of the image to compute its center
@@ -560,38 +480,48 @@ class RobotAction(object):
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
 
-            # Block number's distance to the center of the camera
+            # Dumbbell's distance to the center of the camera
             err = w/2 - cx
 
             print(f"abs(err) / w : {abs(err) / w}")
+
+            # If the color center is at the front
+            if abs(err) / w < 0.05:
                 
-            min_dist = min(self.__scan_data[-10:] + self.__scan_data[:10])
+                min_dist = min(self.__scan_data[-10:] + self.__scan_data[:10])
 
-            print(f"min_dist: {min_dist}")
+                print(f"min_dist: {min_dist}")
 
-            if min_dist <= self.__goal_dist_in_front_block:
+                if min_dist <= self.__goal_dist_in_front_block:
 
-                # Stop the robot
-                self.pub_vel(0,0)
+                    # Stop the robot
+                    self.pub_vel(0,0)
 
-                # Sleep 1s to make sure the robot has stopped
-                rospy.sleep(1)
+                    # Sleep 1s to make sure the robot has stopped
+                    rospy.sleep(1)
 
-                # Change status to reached block
-                self.robot_status = REACHED_BLOCK
-                print(f"---reached block of ID {id}----")
+                    # Change status to reached block
+                    self.robot_status = REACHED_BLOCK
+                    print(f"---reached block of ID {id}----")
 
-                # Drop the dumbbell
-                self.drop_dumbbell()
+                    # Drop the dumbbell
+                    self.drop_dumbbell()
 
+                else:
+
+                    # Rush STRAIGHT toward the block
+                    ang_v, lin_v = self.set_vel(0, min_dist)
+                    self.pub_vel(ang_v, lin_v)
+
+            # If the color center is not right at the front yet
             else:
-                    
+                
                 # Define k_p for proportional control            
-                k_p = 1.0 / 2500.0
+                k_p = 1.0 / 1000.0
 
-                # Slowly turn the head while going forwards, so that the 
-                #   color center would be at the center of the camera
-                self.pub_vel(k_p * err, 0.3)
+                # Slowly turn the head, so that the color center 
+                #   would be at the center of the camera
+                self.pub_vel(k_p * err, 0)
                 print(f"---turning to block of ID {id}----")
 
         # Do nothing if the robot isn't in any of the two statuses
@@ -605,30 +535,20 @@ class RobotAction(object):
         # Set a rate to maintain the frequency of execution
         r = rospy.Rate(5)
 
-        # Run the program based on different statuses and number of action steps
+        # Run the program based on different statuses
+        # TODO: This part needs to be automated
         while not rospy.is_shutdown():
-
-            if self.robot_status == MEASURE_ANGLE:
-                self.process_scan()
-
-
-            # If we haven't exhausted the action sequence list yet, then we keep taking actions
-            if self.action_step < 3:
-
-                # If the robot is in these two statuses, then it needs to execute move_to_dumbbell
-                if self.robot_status == GO_TO_DB or self.robot_status == REACHED_DB:
-                    self.move_to_dumbbell(self.action_sequence[self.action_step][0])
-
-                # If the robot is in these three statuses, then it needs to execute move_to_block
-                elif self.robot_status == PICKED_UP_DB or self.robot_status == MOVING_TO_BLOCK or self.robot_status == REACHED_BLOCK:
-                    self.move_to_block(self.action_sequence[self.action_step][1])
+            if self.robot_status == GO_TO_DB:
+                self.move_to_dumbbell('red')
+            elif self.robot_status == PICKED_UP_DB or self.robot_status == MOVING_TO_BLOCK:
+                self.move_to_block(1)
             
             r.sleep()
 
 
 if __name__ == "__main__":
     try:
-        node = RobotAction()
+        node = RobotPerception()
         node.run()
     except rospy.ROSInterruptException:
         pass

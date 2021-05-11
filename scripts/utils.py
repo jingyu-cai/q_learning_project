@@ -50,11 +50,11 @@ def compute_large_angle(block_bounds):
     for i in range(len(block_bounds)):
         lb, ub = block_bounds[i]
         if i == 0:
-            midpoints[i] = lb - 12 # Add some bias
+            midpoints[i] = lb - 9.5 # Add some bias
         elif i == 1:
             midpoints[i] = (lb + ub) / 2
         elif i == 2:
-            midpoints[i] = ub + 12 # Add some bias
+            midpoints[i] = ub + 9.5 # Add some bias
         
     
     diffs = [midpoints[1] - midpoints[0], midpoints[2] - midpoints[1]]
@@ -70,11 +70,15 @@ class BackToOrigin(object):
 
         self.default_spin_speed = 0.2
         self.default_forward_speed = 0.1
+
+        print("---- Init backtoorigin ----")
         
 
     
     def run(self, current_pos):
         # The pipeline to move robot
+
+        print("==== running back to origin ====")
 
         cur_x = current_pos.position.x
         cur_y = current_pos.position.y
@@ -107,7 +111,7 @@ class BackToOrigin(object):
         self.vel_channel.publish(new_twist)
         rospy.sleep(abs(diff_counter_clockwise) / self.default_spin_speed)
 
-        self.stop_robot(self.vel_channel)
+        self.stop_robot()
 
         print("==== rotated_to_origin ===")
 
@@ -119,7 +123,7 @@ class BackToOrigin(object):
         self.vel_channel.publish(rush_twist)
         rospy.sleep(self.liner_dist / self.default_forward_speed)
 
-        self.stop_robot(self.vel_channel)
+        self.stop_robot()
 
         print("==== rushed_to_origin ===")
 
@@ -131,14 +135,14 @@ class BackToOrigin(object):
         self.vel_channel.publish(straight_twist)
         rospy.sleep(abs(self.theta) / self.default_spin_speed)
 
-        self.stop_robot(self.vel_channel)
+        self.stop_robot()
 
         right_twist = Twist()
         right_twist.angular.z = - math.radians(15)
         self.vel_channel.publish(right_twist)
         rospy.sleep(6)
 
-        self.stop_robot(self.vel_channel)
+        self.stop_robot()
         print("=== facing right now ===")
 
 
