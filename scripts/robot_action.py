@@ -6,9 +6,6 @@ import numpy as np
 import keras_ocr
 import math
 
-import utils
-from utils import BackToOrigin
-
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
@@ -33,7 +30,6 @@ MEASURE_ANGLE = "measure_angle"
 GO_TO_DB = "go_to_dumbbell"
 REACHED_DB = "reached_db"
 PICKED_UP_DB = "picked_up_dumbbell"
-BACK_TO_ORIGIN = "back_to_origin"
 MOVING_TO_BLOCK = "moving_to_block"
 REACHED_BLOCK = "reached_block"
 
@@ -60,7 +56,6 @@ class RobotAction(object):
         # Set up subscribers
         self.image_sub = rospy.Subscriber('camera/rgb/image_raw', Image, self.image_callback)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
-        self.odem_sub = rospy.Subscriber('/odom', Odometry, self.odem_callback)
         
         # Fetch pre-built action matrix. This is a 2d numpy array where row indexes
         # correspond to the starting state and column indexes are the next states.
@@ -116,7 +111,7 @@ class RobotAction(object):
         self.inf_bounds[-1][1] = 90
         self.block_bounds = [[0, 0] for _ in range(3)]
 
-        # Initializr the large_angle
+        # Initialize the large_angle
         self.large_angle = -1
 
         # Make sure the robot has turned to the right block
@@ -140,14 +135,8 @@ class RobotAction(object):
         # Initialize starting robot arm and gripper position
         self.initialize_move_group()
 
-        # Initialize the current pose of robot
-        self.current_pos = []
-
-        # First, robot's status set to GO_TO_DB
+        # First, robot's status set to MEASURE_ANGLE
         self.robot_status = MEASURE_ANGLE
-
-        # Initialize the back-to-origin pipeline
-        self.back_to_origin = BackToOrigin(self.cmd_vel_pub)
 
         # Now everything is initialized
         self.initialized = True
@@ -181,7 +170,6 @@ class RobotAction(object):
 
             # Update current state
             curr_state = np.where(self.action_matrix[curr_state] == selected_action)[0][0]
-
                 
         print(self.action_sequence)
 
@@ -220,24 +208,49 @@ class RobotAction(object):
         self.cmd_vel_pub.publish(self.twist)
 
 
+    def compute_large_angle(block_bounds):
+    """ Compute the large angle between blocks for turning """
+
+        midpoints = [0, 0, 0]
+
+        for i in range(len(block_bounds)):
+
+            lb, ub = block_bounds[i]
+
+            if i == 0:
+                # Add some bias
+                midpoints[i] = lb - 9.5
+            elif i == 1:
+                midpoints[i] = (lb + ub) / 2
+            elif i == 2:
+                # Add some bias
+                midpoints[i] = ub + 9.5
+        
+        diffs = [midpoints[1] - midpoints[0], midpoints[2] - midpoints[1]]
+        
+        return math.radians(sum(diffs) / 2)  
+
+
     def process_scan(self):
-        # Process the scan data to get the large angle
+        """ Process the scan data to get the large angle """
+
         if self.robot_status != MEASURE_ANGLE:
             return
 
         if self.large_angle != -1:
             return
 
-        if self.initialized == False:
+        if not (self.initialized):
             return False
+
         if len(self.__scan_data) == 0:
             print("Have not got the __scan_data yet")
             return False
         
-        
         cnt = 0
         seen = False
         for idx in range(90, 270):
+
             if self.__scan_data[idx] < self.scan_max:
                 if seen == True:
                     self.inf_bounds[cnt][1] = idx
@@ -253,13 +266,12 @@ class RobotAction(object):
             self.block_bounds[i][1] = self.inf_bounds[i+1][0]
 
         print(f"self.block_bounds = {self.block_bounds}")  
-        self.large_angle = utils.compute_large_angle(self.block_bounds)
+        self.large_angle = self.compute_large_angle(self.block_bounds)
         print(f"self.large_angle = {self.large_angle}")
 
         # Make the robot turn back to dbs
         
         self.robot_status = GO_TO_DB
-        
 
 
     def initialize_move_group(self):
@@ -296,16 +308,8 @@ class RobotAction(object):
         rospy.sleep(0.8)
         self.pub_vel(0, 0)
 
-        # Move the db back to the origin, and let it face to the right
-        #print(f" ==== self.current_pos = {self.current_pos} ====")
-        # self.back_to_origin.run(self.current_pos)
-
-
         # After the robot grapped the dumbbells, it's time to identify the blocks
         self.robot_status = PICKED_UP_DB
-
-        
-
 
 
     def drop_dumbbell(self):
@@ -356,15 +360,9 @@ class RobotAction(object):
 
         # Store the ranges data
         self.__scan_data = data.ranges
+
         if not self.scan_max:
             self.scan_max = data.range_max
-    
-    def odem_callback(self, msg):
-        if (not self.initialized):
-            return
-        
-        # Store current position
-        self.current_pos = msg.pose.pose
 
 
     def move_to_dumbbell(self, color: str):
@@ -552,8 +550,6 @@ class RobotAction(object):
         # If the robot has found the desired block, then move to it
         elif self.robot_status == MOVING_TO_BLOCK:
 
-            # I only checked when robot moves to block number 2 and it works, not sure about 1 and 3
-
             # Get the shape of the image to compute its center
             h, w, d = self.image.shape
 
@@ -607,10 +603,10 @@ class RobotAction(object):
 
         # Run the program based on different statuses and number of action steps
         while not rospy.is_shutdown():
-
+            
+            # Processes the scan data first to measure the angles between the blocks
             if self.robot_status == MEASURE_ANGLE:
                 self.process_scan()
-
 
             # If we haven't exhausted the action sequence list yet, then we keep taking actions
             if self.action_step < 3:
