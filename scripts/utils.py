@@ -58,7 +58,7 @@ def compute_large_angle(block_bounds):
         
     
     diffs = [midpoints[1] - midpoints[0], midpoints[2] - midpoints[1]]
-    return sum(diffs) / 2  
+    return math.radians(sum(diffs) / 2)  
 
 
 class BackToOrigin(object):

@@ -553,8 +553,9 @@ class RobotAction(object):
                         # We will publish a specific degree so that the robot always
                         #   only sees the next block on its left, so we always grab
                         #   the first image in the list for detection
-                        self.pub_vel(math.radians(9.5), 0)
-                        rospy.sleep(6)
+                        spin_speed = math.radians(9.5)
+                        self.pub_vel(spin_speed, 0)
+                        rospy.sleep(self.large_angle / spin_speed)
 
             # If we cannot see the pixel of the desired color
             else:
