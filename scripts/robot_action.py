@@ -259,41 +259,42 @@ class RobotAction(object):
             print("Have not got the __scan_data yet")
             return
         
-        # Initially, the robot faces to the dumbbells. 
-        # To get the angles for blocks, we use the scan data from the back
-        # Note that the scan data is a list of length 360, with
-        # 0 -> front, 90 -> right, 180 -> back, 270 -> left
+        # Initially, the robot faces to the dumbbells. To get the angles for 
+        #   blocks, we use the scan data from the back. Note that the scan data
+        #   is a list of length 360, with 0 -> front, 90 -> right, 180 -> back,
+        #   270 -> left
 
         # In this data range, we expect four consecutive parts with value inf
-        # And hence three consecutive parts with value != inf
-        # We save the upper bound and lower bound of these ranges
-        # in self.inf_bounds and self.block_bounds
+        #   and hence three consecutive parts with value != inf. We save the 
+        #   upper bound and lower bound of these ranges in self.inf_bounds and 
+        #   self.block_bounds
+
         cnt = 0
+        
         # A flag for marking the start and end of an "inf" range
         seen = False
-
 
         for idx in range(90, 270):
 
             if self.__scan_data[idx] < self.scan_max:
 
-                # If we have marked the start of the inf range,
-                # when we encounter a value != inf
-                # it means that this is the end of current inf range
+                # If we have marked the start of the inf range, when we 
+                #   encounter a value != inf, it means that this is the end
+                #   of current inf range
                 if seen == True:
                     self.inf_bounds[cnt][1] = idx
                     seen = False
                     cnt += 1
             else:
 
-                # If the previous inf range has ended, and we encounter
-                # a new inf value, we take it as the start of an inf range
+                # If the previous inf range has ended, and we encounter a
+                #   new inf value, we take it as the start of an inf range
                 if not seen:
                     self.inf_bounds[cnt][0] = idx
                     seen = True       
 
         # There are 4 inf ranges, and the block ranges are just intervals between
-        # these inf ranges
+        #   these inf ranges
         for i in range(3):
             self.block_bounds[i][0] = self.inf_bounds[i][1]
             self.block_bounds[i][1] = self.inf_bounds[i+1][0]
