@@ -451,6 +451,22 @@ class RobotAction(object):
     def is_correct_num(self, id: int, prediction_group):
         """ Check if the detected number is the block ID we are looking for """
 
+        # Find the left-most image with the center of the x positions of the boxes
+        left_most_block = 0
+        center_x = sum([coord[0] for coord in prediction_group[left_most_block][1]]) / 4
+
+        for i in len(prediction_group):
+
+            # Compute the center of the x positions
+            temp_center_x = sum([coord[0] for coord in prediction_group[i][1]]) / 4
+
+            # Update left_most_block and center_x if the new center is smaller / more left
+            if temp_center_x < center_x:
+                left_most_block = i
+                center_x = temp_center_x
+
+        print("Successfully got: " + str(prediction_group[left_most_block][0]))
+
         # Sometimes the detector may recognize numbers as other numbers or 
         #   characters, so we are grouping them into the same category
         ones = ["1", "l", "i"]
@@ -462,11 +478,11 @@ class RobotAction(object):
         # We always grab the first image in the list for detection, the robot
         #   turning movement will ensure that this will always be the next block
         #   it sees on the left
-        if prediction_group[0][0] in ones:
+        if prediction_group[left_most_block][0] in ones:
             detected_num = 1
-        elif prediction_group[0][0] in twos:
+        elif prediction_group[left_most_block][0] in twos:
             detected_num = 2
-        elif prediction_group[0][0] in threes:
+        elif prediction_group[left_most_block][0] in threes:
             detected_num = 3
 
         if detected_num == id:
@@ -520,10 +536,8 @@ class RobotAction(object):
                 # If the recognizer has recognized an image, we check if the first 
                 #   one is the correct one
                 else:
-                    
-                    print("Successfully got: " + str(prediction_group[0][0]))
 
-                    # Make sure we have the correct num
+                    # Make sure we have the correct num for the leftmost block
                     if self.is_correct_num(id, prediction_group):
 
                         # Set robot status to move to block
@@ -532,9 +546,8 @@ class RobotAction(object):
                     # Otherwise, we keep turning
                     else:
 
-                        # We will publish a specific degree so that the robot always
-                        #   only sees the next block on its left, so we always grab
-                        #   the first image in the list for detection
+                        # We will publish the computed angle between the blocks so 
+                        #   that the robot always only sees the next block on its left
                         spin_speed = math.radians(9.5)
                         self.pub_vel(spin_speed, 0)
                         rospy.sleep(self.large_angle / spin_speed)
