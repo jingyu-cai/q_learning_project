@@ -7,9 +7,6 @@ Jingyu Cai [jcai23@uchicago.edu](mailto:jcai23@uchicago.edu)
 
 Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 
-### Demo GIF (10x speed up)
-<img src="./gif/q_learning_final.gif" width = 1000>
-
 ### Component implementation and testing
 - **Q-learning algorithm**
     - **Executing the Q-learning algorithm**
@@ -68,6 +65,9 @@ Zhou Xing [zhouxing@uchicago.edu](mailto:zhouxing@uchicago.edu)
 ## Writeup
 
 **Please see the code from the master branch!**
+
+### Demo GIF (10x speed up)
+<img src="./gif/q_learning_final.gif" width = 1000>
 
 ### Objectives description
 For this project, the objective is to first train a Q-matrix based on the Q-learning algorithm. Then, with the trained Q-matrix that specifices what action to take in a particular state to maximize the received reward, we need to make the robot perform a sequence of perceptions and movements to place each dumbbell in front of the correct block.
