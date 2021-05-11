@@ -314,7 +314,7 @@ class RobotAction(object):
 
         # Set arm and gripper joint goals and move them
         arm_joint_goal = [0.0, 0.65, 0.15, -0.9]
-        gripper_joint_goal = [0.01, 0.01]
+        gripper_joint_goal = [0.015, 0.015]
         self.move_group_arm.go(arm_joint_goal, wait=True)
         self.move_group_gripper.go(gripper_joint_goal, wait=True)
         self.move_group_arm.stop()
@@ -355,16 +355,18 @@ class RobotAction(object):
 
         # Set arm and gripper joint goals and move them
         arm_joint_goal = [0.0, 0.65, 0.15, -0.9]
-        gripper_joint_goal = [0.01, 0.01]
+        gripper_joint_goal = [0.015, 0.015]
         self.move_group_arm.go(arm_joint_goal, wait=True)
+        rospy.sleep(0.5)
         self.move_group_gripper.go(gripper_joint_goal, wait=True)
         self.move_group_arm.stop()
         self.move_group_gripper.stop()
+        rospy.sleep(1)
 
         # Step back so the robot won't hit the dumbbell while rotating
         print("----- stepping back!----")
-        self.pub_vel(0, -0.5)
-        rospy.sleep(0.8)
+        self.pub_vel(0, -0.3)
+        rospy.sleep(1)
         self.pub_vel(0, 0)
 
         # After the robot dropped the dumbbells, it's time to go back to the dumbbells
