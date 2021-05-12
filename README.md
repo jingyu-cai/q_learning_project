@@ -90,7 +90,7 @@ The relevant code are located in `q_learning.py`.
 	- `reward_received()`: This integrates the above functions to check if the Q-matrix has converged after every reward callback, and saves the matrix if it has converged or keep taking random actions if otherwise.
 - **Executing the path most likely to lead to receiving a reward after the Q-matrix has converged on the simulated Turtlebot3 robot**: For each state, we will take the action with the highest Q-value in the converged Q-matrix for the robot to execute. Note that for this component, the code is instead located in `robot_action.py`.
 	- `get_action_sequence()`: After loading the converged `q_matrix.csv`, we will iterate through each state, beginning with 0 (when everything is at the origin) and choose the largest Q-value as the action to take. We will append each action onto the `self.action_sequence` array containing elements of tuples in the form of `(db, block)`.
-	- `run()`: This function iterates throught the `self.action_sequence` array for the robot to execute the actions from perception and movement integrations.
+	- `run()`: This function iterates through the `self.action_sequence` array for the robot to execute the actions from perception and movement integrations.
 
 ### Robot perception description
 The relevant code are located in `robot_action.py`.
